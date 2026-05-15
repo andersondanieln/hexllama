@@ -7,7 +7,15 @@ files:
   - out/preload/**/*
   - out/renderer/**/*
 win:
-  target: nsis
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
   icon: assets/icon_256.png
 nsis:
   oneClick: false
