@@ -491,14 +491,30 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('check-updates', async () => {
     try {
-      const release = await fetchJson('https://api.github.com/repos/ggerganov/llama.cpp/releases/latest') as any
+      const release = await fetchJson('https://api.github.com/repos/ggml-org/llama.cpp/releases/latest') as any
       if (!release || !release.assets) return { error: 'Invalid response from GitHub' }
-      const windowsAssets = release.assets.filter((a: any) => {
-        const lowerName = a.name.toLowerCase()
-        const isWin = lowerName.endsWith('.zip') && !lowerName.startsWith('cudart-') && (lowerName.includes('win') || lowerName.includes('windows'))
-        if (!isWin) return false
-        if (process.arch === 'x64' && lowerName.includes('arm64')) return false
-        if (process.arch === 'arm64' && lowerName.includes('x64')) return false
+      const isMac = process.platform === 'darwin'
+      const isLinux = process.platform === 'linux'
+      const arch = process.arch
+      const platformAssets = release.assets.filter((a: any) => {
+        const n = a.name.toLowerCase()
+        if (n.startsWith('cudart-')) return false
+        if (isMac) {
+          if (!n.endsWith('.tar.gz') || !n.includes('macos')) return false
+          if (arch === 'arm64' && !n.includes('arm64')) return false
+          if (arch === 'x64' && !n.includes('x64')) return false
+          return true
+        }
+        if (isLinux) {
+          if (!n.endsWith('.tar.gz') || !n.includes('ubuntu')) return false
+          if (arch === 'arm64' && !n.includes('arm64')) return false
+          if (arch === 'x64' && n.includes('arm64')) return false
+          return true
+        }
+        if (!n.endsWith('.zip')) return false
+        if (!(n.includes('win') || n.includes('windows'))) return false
+        if (arch === 'x64' && n.includes('arm64')) return false
+        if (arch === 'arm64' && n.includes('x64')) return false
         return true
       })
       const latestNum = parseInt(release.tag_name.replace(/^b/, ''), 10)
@@ -509,29 +525,38 @@ export function registerIpcHandlers(): void {
           if (parseInt(m[1], 10) >= latestNum || d.name.includes(release.tag_name)) { isNewer = false; break }
         }
       }
-      return { tagName: release.tag_name, name: release.name, url: release.html_url, publishedAt: release.published_at, isNewer, assets: windowsAssets.map((a: any) => ({ name: a.name, downloadUrl: a.browser_download_url, size: a.size })) }
+      return { tagName: release.tag_name, name: release.name, url: release.html_url, publishedAt: release.published_at, isNewer, assets: platformAssets.map((a: any) => ({ name: a.name, downloadUrl: a.browser_download_url, size: a.size })) }
     } catch (err) { return { error: String(err) } }
   })
   ipcMain.handle('download-release', async (event, opts: { url: string; version: string; assetName: string }) => {
-    const zipPath = join(app.getPath('temp'), opts.assetName)
+    const archivePath = join(app.getPath('temp'), opts.assetName)
     const extractPath = join(BACKEND_DIR, opts.version)
+    const isTarGz = opts.assetName.toLowerCase().endsWith('.tar.gz')
     try {
       event.sender.send('download-progress', { percent: 0, phase: 'downloading' })
       await new Promise<void>((resolve, reject) => {
-        cancelBackendDl = startDownload(opts.url, zipPath, 0,
+        cancelBackendDl = startDownload(opts.url, archivePath, 0,
           (r, t) => event.sender.send('download-progress', { percent: t > 0 ? Math.round(r / t * 100) : 0, phase: 'downloading' }),
           resolve, reject)
       })
       cancelBackendDl = null
       event.sender.send('download-progress', { percent: 100, phase: 'extracting' })
       if (!existsSync(extractPath)) mkdirSync(extractPath, { recursive: true })
-      await extract(zipPath, { dir: extractPath })
-      try { unlinkSync(zipPath) } catch {}
+      if (isTarGz) {
+        await new Promise<void>((resolve, reject) => {
+          const p = spawn('tar', ['-xzf', archivePath, '-C', extractPath], { stdio: 'pipe' })
+          p.on('error', reject)
+          p.on('exit', code => code === 0 ? resolve() : reject(new Error(`tar exited with code ${code}`)))
+        })
+      } else {
+        await extract(archivePath, { dir: extractPath })
+      }
+      try { unlinkSync(archivePath) } catch {}
       return { success: true, path: extractPath }
-    } catch (err) { 
+    } catch (err) {
       cancelBackendDl = null
-      try { unlinkSync(zipPath) } catch {}
-      return { success: false, error: String(err) } 
+      try { unlinkSync(archivePath) } catch {}
+      return { success: false, error: String(err) }
     }
   })
   ipcMain.handle('cancel-backend-download', () => {
