@@ -58,7 +58,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
 
     steps:
       - name: Check out Git repository
@@ -80,6 +80,7 @@ jobs:
         run: npm run package
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload Artifacts to Release
         uses: softprops/action-gh-release@v2
@@ -89,5 +90,6 @@ jobs:
             dist/*.exe
             dist/*.zip
             dist/*.AppImage
+            dist/*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

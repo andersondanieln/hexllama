@@ -24,7 +24,7 @@ nsis:
   deleteAppDataOnUninstall: false
 mac:
   target: dmg
-  icon: assets/icon_256.png
+  icon: assets/icon_1024.png
 linux:
   target: AppImage
   icon: assets/icon_256.png
