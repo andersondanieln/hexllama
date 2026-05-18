@@ -220,7 +220,7 @@ function ModelFileRow({ model, onDeleted }: { model: ModelFileInfo; onDeleted: (
   )
 }
 export default function ModelsView() {
-  const { models, setModels, modelDownloads, upsertModelDownload } = useStore()
+  const { models, setModels, modelDownloads, upsertModelDownload, paths } = useStore()
   const [showUrlModal, setShowUrlModal] = useState(false)
   const [loading, setLoading] = useState(false)
   const refresh = useCallback(async () => {
@@ -253,7 +253,7 @@ export default function ModelsView() {
           <button className="btn btn-ghost btn-icon" onClick={refresh} title="Refresh" disabled={loading}>
             <RefreshCw size={15} className={loading ? 'spin' : ''} />
           </button>
-          <button className="btn btn-secondary" onClick={() => window.api.openFolder('models')} >
+          <button className="btn btn-secondary" onClick={() => paths?.models && window.api.openFolder(paths.models)} disabled={!paths?.models}>
             <FolderOpen size={15} /> Open Folder
           </button>
           <button className="btn btn-primary" onClick={() => setShowUrlModal(true)}>
