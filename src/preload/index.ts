@@ -49,6 +49,9 @@ const api = {
   removeHfDownloadListener: () => ipcRenderer.removeAllListeners('hf-download-progress'),
   openFolder: (path: string) => ipcRenderer.invoke('open-folder', path),
   getPaths: () => ipcRenderer.invoke('get-paths'),
+  listExternalModelFolders: () => ipcRenderer.invoke('list-external-model-folders'),
+  addExternalModelFolder: () => ipcRenderer.invoke('add-external-model-folder'),
+  removeExternalModelFolder: (folder: string) => ipcRenderer.invoke('remove-external-model-folder', folder),
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
   openChatWindow: (port: number) => ipcRenderer.invoke('open-chat-window', port),
 }

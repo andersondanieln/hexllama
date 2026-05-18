@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
-import { HardDrive, Download, Trash, RefreshCw, Loader2, ChevronDown, Terminal, Bell, BellOff } from 'lucide-react'
+import { HardDrive, Download, Trash, RefreshCw, Loader2, ChevronDown, Terminal, Bell, BellOff, FolderPlus, Folder } from 'lucide-react'
 import CommandsEditor from './CommandsEditor'
 
 const NOTIF_KEY = 'hexllama_update_notify'
@@ -11,17 +11,37 @@ function getNotifPref(): 'banner' | 'manual' {
 
 export default function SettingsView() {
   const { backends, activeBackend, setActiveBackend, setCommandsSchema, setBackends,
-          releaseInfo, checkingUpdate, downloadProgress, setDownloadProgress, setCheckingUpdate, setReleaseInfo } = useStore()
+          releaseInfo, checkingUpdate, downloadProgress, setDownloadProgress, setCheckingUpdate, setReleaseInfo,
+          setModels } = useStore()
   const [downloading, setDownloading] = useState(false)
   const [selectedAssetUrl, setSelectedAssetUrl] = useState('')
   const [expandedEditor, setExpandedEditor] = useState<string | null>(null)
   const [notifPref, setNotifPref] = useState<'banner' | 'manual'>(getNotifPref())
+  const [extFolders, setExtFolders] = useState<string[]>([])
 
   useEffect(() => {
     if (releaseInfo?.assets.length && !selectedAssetUrl) {
       setSelectedAssetUrl(releaseInfo.assets[0].downloadUrl)
     }
   }, [releaseInfo, selectedAssetUrl])
+
+  useEffect(() => {
+    window.api.listExternalModelFolders().then(setExtFolders)
+  }, [])
+
+  async function refreshModels() {
+    const m = await window.api.listModels()
+    setModels(m)
+  }
+  async function handleAddExtFolder() {
+    const res = await window.api.addExternalModelFolder()
+    if (res.success && res.folders) { setExtFolders(res.folders); await refreshModels() }
+  }
+  async function handleRemoveExtFolder(folder: string) {
+    const res = await window.api.removeExternalModelFolder(folder)
+    setExtFolders(res.folders)
+    await refreshModels()
+  }
 
   function handleNotifPref(pref: 'banner' | 'manual') {
     setNotifPref(pref)
@@ -109,6 +129,33 @@ export default function SettingsView() {
               The update banner will not be shown automatically. Use "Check Now" below anytime.
             </p>
           )}
+        </div>
+      </div>
+
+      {}
+      <div className="settings-section">
+        <div className="settings-section-title"><Folder /> External Model Folders</div>
+        <div className="settings-row" style={{ borderBottom: 'none', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            Add folders outside the app's default models directory. Files inside (and any subdirectories) will appear on the Models page alongside downloaded models. They stay where they are &mdash; nothing is copied.
+          </p>
+          {extFolders.length === 0 ? (
+            <div className="text-sm" style={{ color: 'var(--text-muted)' }}>No external folders configured.</div>
+          ) : (
+            <div className="flex flex-col gap-2" style={{ width: '100%' }}>
+              {extFolders.map(f => (
+                <div key={f} className="settings-row" style={{ borderBottom: 'none', padding: '6px 0' }}>
+                  <div className="settings-row-sub mono" style={{ flex: 1, wordBreak: 'break-all' }}>{f}</div>
+                  <button className="btn btn-ghost btn-icon text-danger" onClick={() => handleRemoveExtFolder(f)} title="Remove folder">
+                    <Trash size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button className="btn btn-secondary btn-sm" onClick={handleAddExtFolder}>
+            <FolderPlus size={13} /> Add Folder
+          </button>
         </div>
       </div>
 

@@ -13,11 +13,23 @@ const APP_ROOT = app.isPackaged ? join(app.getPath('userData')) : join(process.c
 const MODELS_DIR    = join(APP_ROOT, 'models')
 const TEMPLATES_DIR = join(APP_ROOT, 'templates')
 const BACKEND_DIR   = join(APP_ROOT, 'backend')
+const SETTINGS_PATH = join(APP_ROOT, 'settings.json')
 for (const dir of [MODELS_DIR, TEMPLATES_DIR, BACKEND_DIR]) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
 }
 function isSafePath(base: string, target: string): boolean {
   return resolve(target).startsWith(resolve(base))
+}
+interface AppSettings { externalModelFolders: string[] }
+function loadSettings(): AppSettings {
+  try {
+    if (!existsSync(SETTINGS_PATH)) return { externalModelFolders: [] }
+    const data = JSON.parse(readFileSync(SETTINGS_PATH, 'utf-8'))
+    return { externalModelFolders: Array.isArray(data.externalModelFolders) ? data.externalModelFolders : [] }
+  } catch { return { externalModelFolders: [] } }
+}
+function saveSettings(s: AppSettings): void {
+  writeFileSync(SETTINGS_PATH, JSON.stringify(s, null, 2))
 }
 const runningProcesses = new Map<string, ChildProcess>()
 interface DownloadTask {
@@ -131,22 +143,46 @@ function startDownload(
 
 export function registerIpcHandlers(): void {
   ipcMain.handle('list-models', () => {
-    if (!existsSync(MODELS_DIR)) return []
     const exts = ['.gguf', '.bin', '.ggml']
-    const results: { name: string; path: string; size: number; folder: string }[] = []
-    const scan = (dir: string) => {
+    const results: { name: string; path: string; size: number; folder: string; external: boolean }[] = []
+    const seen = new Set<string>()
+    const scan = (dir: string, external: boolean) => {
       try {
         for (const e of readdirSync(dir, { withFileTypes: true })) {
-          if (e.isDirectory()) scan(join(dir, e.name))
+          if (e.isDirectory()) scan(join(dir, e.name), external)
           else if (exts.includes(extname(e.name).toLowerCase()) && !e.name.endsWith('.tmp')) {
             const fp = join(dir, e.name)
-            results.push({ name: e.name, path: fp, size: statSync(fp).size, folder: basename(dir) })
+            const key = resolve(fp)
+            if (seen.has(key)) continue
+            seen.add(key)
+            results.push({ name: e.name, path: fp, size: statSync(fp).size, folder: basename(dir), external })
           }
         }
       } catch {}
     }
-    scan(MODELS_DIR)
+    if (existsSync(MODELS_DIR)) scan(MODELS_DIR, false)
+    for (const folder of loadSettings().externalModelFolders) {
+      if (existsSync(folder)) scan(folder, true)
+    }
     return results
+  })
+  ipcMain.handle('list-external-model-folders', () => loadSettings().externalModelFolders)
+  ipcMain.handle('add-external-model-folder', async () => {
+    const r = await dialog.showOpenDialog({ title: 'Add External Model Folder', properties: ['openDirectory'] })
+    if (r.canceled || !r.filePaths.length) return { success: false }
+    const folder = r.filePaths[0]
+    const s = loadSettings()
+    if (!s.externalModelFolders.includes(folder)) {
+      s.externalModelFolders.push(folder)
+      saveSettings(s)
+    }
+    return { success: true, folders: s.externalModelFolders }
+  })
+  ipcMain.handle('remove-external-model-folder', (_e, folder: string) => {
+    const s = loadSettings()
+    s.externalModelFolders = s.externalModelFolders.filter(f => f !== folder)
+    saveSettings(s)
+    return { success: true, folders: s.externalModelFolders }
   })
   ipcMain.handle('delete-model', (_e, filePath: string) => {
     try {

@@ -208,13 +208,14 @@ function ModelFileRow({ model, onDeleted }: { model: ModelFileInfo; onDeleted: (
         )}
         <div className="models-file-sub">
           <span className="models-folder-badge">{model.folder}</span>
+          {model.external && <span className="models-folder-badge" title="Model from an external folder — will not be renamed or deleted by the app">External</span>}
           <span>{formatBytes(model.size)}</span>
         </div>
       </div>
       <div className="models-file-actions">
-        <button className="btn btn-ghost btn-icon" onClick={() => setEditing(true)} title="Rename"><Pencil size={14} /></button>
+        <button className="btn btn-ghost btn-icon" onClick={() => setEditing(true)} title={model.external ? 'Rename disabled for external models' : 'Rename'} disabled={model.external}><Pencil size={14} /></button>
         <button className="btn btn-ghost btn-icon" onClick={() => window.api.openFolder(model.path.substring(0, model.path.lastIndexOf('/') === -1 ? model.path.lastIndexOf('\\') : model.path.lastIndexOf('/')))} title="Open folder"><FolderOpen size={14} /></button>
-        <button className="btn btn-ghost btn-icon text-danger" onClick={handleDelete} title="Delete"><Trash size={14} /></button>
+        <button className="btn btn-ghost btn-icon text-danger" onClick={handleDelete} title={model.external ? 'Delete disabled for external models' : 'Delete'} disabled={model.external}><Trash size={14} /></button>
       </div>
     </div>
   )

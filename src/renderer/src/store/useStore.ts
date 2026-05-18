@@ -7,7 +7,7 @@ interface CardState {
   expanded: boolean
 }
 export interface ModelFileInfo {
-  name: string; path: string; size: number; folder: string
+  name: string; path: string; size: number; folder: string; external?: boolean
 }
 export interface ModelDownloadInfo {
   id: string; url: string; filename: string; destPath: string

@@ -4,6 +4,7 @@ interface ModelFileInfo {
   path: string
   size: number
   folder: string
+  external?: boolean
 }
 interface ModelDownloadInfo {
   id: string
@@ -59,6 +60,9 @@ interface LlamaCppApi {
   removeHfDownloadListener: () => void
   openFolder: (path: string) => Promise<void>
   getPaths: () => Promise<{ models: string; templates: string; backend: string }>
+  listExternalModelFolders: () => Promise<string[]>
+  addExternalModelFolder: () => Promise<{ success: boolean; folders?: string[] }>
+  removeExternalModelFolder: (folder: string) => Promise<{ success: boolean; folders: string[] }>
   openExternal: (url: string) => Promise<void>
   openChatWindow: (port: number) => Promise<void>
 }
