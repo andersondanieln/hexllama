@@ -217,12 +217,36 @@ export default function BenchmarkView() {
           {running ? <Loader2 size={15} className="spin" /> : <Play size={15} />}
           {running ? 'Running benchmark…' : 'Run Benchmark'}
         </button>
-        {running && (
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            This may take a few minutes depending on the sweep size.
-          </span>
-        )}
       </div>
+
+      {running && (
+        <div
+          style={{
+            position: 'sticky',
+            bottom: 16,
+            zIndex: 999,
+            marginTop: 16,
+            padding: '12px 16px',
+            background: 'var(--surface)',
+            border: '1.5px solid var(--accent)',
+            borderRadius: 'var(--radius-sm)',
+            boxShadow: 'var(--shadow-md)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12
+          }}
+        >
+          <Loader2 size={16} className="spin" style={{ flexShrink: 0, color: 'var(--accent)' }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 2, fontSize: 13 }}>
+              {progressLine || 'Loading model…'}
+            </div>
+            <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12, color: 'var(--text-secondary)' }}>
+              {Math.floor(elapsed / 60)}m {String(elapsed % 60).padStart(2, '0')}s elapsed
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="hub-error" style={{ marginTop: 16 }}>
