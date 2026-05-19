@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Loader2, FileText, Printer, Check } from 'lucide-react'
 import BenchmarkResultsTable, { rowsToMarkdown } from './BenchmarkResultsTable'
+import BenchmarkResultsChart from './BenchmarkResultsChart'
 
 const IS_MACOS = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
 
@@ -107,8 +108,26 @@ export default function BenchmarkResultsWindow() {
             <Loader2 size={20} className="spin" style={{ display: 'block', margin: '0 auto 8px' }} />
             Loading…
           </div>
+        ) : rows.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>
+            No results to display.
+          </div>
         ) : (
-          <BenchmarkResultsTable rows={rows} />
+          <>
+            <div
+              style={{
+                marginBottom: 24,
+                padding: '16px 16px 8px',
+                background: 'var(--surface)',
+                border: '1.5px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                boxShadow: 'var(--shadow)'
+              }}
+            >
+              <BenchmarkResultsChart rows={rows} />
+            </div>
+            <BenchmarkResultsTable rows={rows} />
+          </>
         )}
       </div>
     </div>
