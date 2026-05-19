@@ -566,7 +566,7 @@ input, textarea, select {
   color: var(--text-secondary); cursor: pointer;
   transition: all var(--transition);
 }
-.launch-mode-btn:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text); }
+.launch-mode-btn:not(.active):hover:not(:disabled) { border-color: var(--border-strong); color: var(--text); }
 .launch-mode-btn.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 .launch-mode-btn:disabled { opacity: .5; cursor: not-allowed; }
 .launch-mode-btn svg { width: 11px; height: 11px; }
