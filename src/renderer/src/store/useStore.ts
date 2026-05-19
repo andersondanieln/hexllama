@@ -26,6 +26,7 @@ interface AppStore {
   view: 'cards' | 'settings' | 'hub' | 'models' | 'about'
   showCreateModal: boolean
   editingTemplate: Template | null
+  prefillModelPath: string | null
   updateDismissed: boolean
   checkingUpdate: boolean
   downloadProgress: { percent: number; phase: string } | null
@@ -37,6 +38,7 @@ interface AppStore {
   hubSelectedModelId: string | null
   setView: (v: AppStore['view']) => void
   setShowCreateModal: (show: boolean, template?: Template | null) => void
+  setPrefillModelPath: (path: string | null) => void
   setActiveBackend: (b: BackendVersion) => void
   setCommandsSchema: (s: CommandsSchema) => void
   setBackends: (b: BackendVersion[]) => void
@@ -65,12 +67,13 @@ interface AppStore {
 export const useStore = create<AppStore>((set) => ({
   cards: [], backends: [], models: [], activeBackend: null,
   commandsSchema: null, releaseInfo: null, paths: null,
-  view: 'cards', showCreateModal: false, editingTemplate: null,
+  view: 'cards', showCreateModal: false, editingTemplate: null, prefillModelPath: null,
   updateDismissed: false, checkingUpdate: false, downloadProgress: null,
   templateSearch: '', modelDownloads: {}, hfDownloads: [],
   hubQuery: '', hubResults: [], hubSelectedModelId: null,
   setView: (v) => set({ view: v }),
   setShowCreateModal: (show, template = null) => set({ showCreateModal: show, editingTemplate: template }),
+  setPrefillModelPath: (path) => set({ prefillModelPath: path }),
   setActiveBackend: (b) => set({ activeBackend: b }),
   setCommandsSchema: (s) => set({ commandsSchema: s }),
   setBackends: (b) => set({ backends: b }),
