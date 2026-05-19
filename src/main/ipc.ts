@@ -769,8 +769,14 @@ export function registerIpcHandlers(): void {
     const args = ['-m', opts.modelPath, '-o', 'json', '--progress']
     if (opts.reps && opts.reps > 0) args.push('-r', String(opts.reps))
     for (const [k, v] of Object.entries(opts.params || {})) {
-      const trimmed = (v || '').trim()
-      if (trimmed) args.push(k, trimmed)
+      // Collapse whitespace around commas so "f16, q8_0" / "4 , 6 , 8" both
+      // pass through cleanly; drop empty fragments from trailing commas.
+      const cleaned = (v || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0)
+        .join(',')
+      if (cleaned) args.push(k, cleaned)
     }
     return new Promise<{ success: boolean; rows?: unknown[]; error?: string }>((resolve) => {
       let stdout = ''
