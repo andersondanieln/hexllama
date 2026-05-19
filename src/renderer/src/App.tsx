@@ -6,6 +6,7 @@ import CardsView from './components/CardsView'
 import SettingsView from './components/SettingsView'
 import HuggingFaceView from './components/HuggingFaceView'
 import ModelsView from './components/ModelsView'
+import BenchmarkView from './components/BenchmarkView'
 import AboutView from './components/AboutView'
 import CreateModal from './components/CreateModal'
 import UpdateBanner from './components/UpdateBanner'
@@ -198,6 +199,7 @@ export default function App() {
     if (view === 'hub') return <HuggingFaceView />
     if (view === 'settings') return <SettingsView />
     if (view === 'models') return <ModelsView />
+    if (view === 'benchmark') return <BenchmarkView />
     if (view === 'about') return <AboutView />
     return <CardsView />
   }

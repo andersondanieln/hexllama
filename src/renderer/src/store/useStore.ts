@@ -24,7 +24,7 @@ interface AppStore {
   commandsSchema: CommandsSchema | null
   releaseInfo: ReleaseInfo | null
   paths: { models: string; templates: string; backend: string } | null
-  view: 'cards' | 'settings' | 'hub' | 'models' | 'about'
+  view: 'cards' | 'settings' | 'hub' | 'models' | 'benchmark' | 'about'
   showCreateModal: boolean
   editingTemplate: Template | null
   prefillModelPath: string | null
