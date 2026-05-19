@@ -207,6 +207,11 @@ export default function CreateModal() {
                   min={1024}
                   max={65535}
                 />
+                {(serverPort < 1024 || serverPort > 65535) && (
+                  <div className="form-hint" style={{ color: 'var(--danger)' }}>
+                    Port must be between 1024 and 65535.
+                  </div>
+                )}
               </div>
             </div>
             {}
