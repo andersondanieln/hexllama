@@ -551,11 +551,11 @@ export function registerIpcHandlers(): void {
       } else {
         await extract(archivePath, { dir: extractPath })
       }
-      try { unlinkSync(archivePath) } catch {}
+      try { unlinkSync(archivePath) } catch (e) { console.error('Failed to cleanup temp file', e) }
       return { success: true, path: extractPath }
     } catch (err) {
       cancelBackendDl = null
-      try { unlinkSync(archivePath) } catch {}
+      try { unlinkSync(archivePath) } catch (e) { console.error('Failed to cleanup temp file', e) }
       return { success: false, error: String(err) }
     }
   })
