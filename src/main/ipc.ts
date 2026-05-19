@@ -1,7 +1,7 @@
 import { ipcMain, dialog, shell, BrowserWindow } from 'electron'
 import {
   existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync,
-  unlinkSync, createWriteStream, statSync, rmdirSync, renameSync
+  unlinkSync, createWriteStream, statSync, rmdirSync, renameSync, promises as fsPromises
 } from 'fs'
 import { join, extname, basename, dirname, resolve } from 'path'
 import { spawn, ChildProcess } from 'child_process'
@@ -21,15 +21,15 @@ function isSafePath(base: string, target: string): boolean {
   return resolve(target).startsWith(resolve(base))
 }
 interface AppSettings { externalModelFolders: string[] }
-function loadSettings(): AppSettings {
+async function loadSettings(): Promise<AppSettings> {
   try {
     if (!existsSync(SETTINGS_PATH)) return { externalModelFolders: [] }
-    const data = JSON.parse(readFileSync(SETTINGS_PATH, 'utf-8'))
+    const data = JSON.parse(await fsPromises.readFile(SETTINGS_PATH, 'utf-8'))
     return { externalModelFolders: Array.isArray(data.externalModelFolders) ? data.externalModelFolders : [] }
   } catch { return { externalModelFolders: [] } }
 }
-function saveSettings(s: AppSettings): void {
-  writeFileSync(SETTINGS_PATH, JSON.stringify(s, null, 2))
+async function saveSettings(s: AppSettings): Promise<void> {
+  await fsPromises.writeFile(SETTINGS_PATH, JSON.stringify(s, null, 2))
 }
 const runningProcesses = new Map<string, ChildProcess>()
 interface DownloadTask {
@@ -142,46 +142,49 @@ function startDownload(
 }
 
 export function registerIpcHandlers(): void {
-  ipcMain.handle('list-models', () => {
+  ipcMain.handle('list-models', async () => {
     const exts = ['.gguf', '.bin', '.ggml']
     const results: { name: string; path: string; size: number; folder: string; external: boolean }[] = []
     const seen = new Set<string>()
-    const scan = (dir: string, external: boolean) => {
+    const scan = async (dir: string, external: boolean) => {
       try {
-        for (const e of readdirSync(dir, { withFileTypes: true })) {
-          if (e.isDirectory()) scan(join(dir, e.name), external)
+        const files = await fsPromises.readdir(dir, { withFileTypes: true })
+        for (const e of files) {
+          if (e.isDirectory()) await scan(join(dir, e.name), external)
           else if (exts.includes(extname(e.name).toLowerCase()) && !e.name.endsWith('.tmp')) {
             const fp = join(dir, e.name)
             const key = resolve(fp)
             if (seen.has(key)) continue
             seen.add(key)
-            results.push({ name: e.name, path: fp, size: statSync(fp).size, folder: basename(dir), external })
+            const st = await fsPromises.stat(fp)
+            results.push({ name: e.name, path: fp, size: st.size, folder: basename(dir), external })
           }
         }
       } catch {}
     }
-    if (existsSync(MODELS_DIR)) scan(MODELS_DIR, false)
-    for (const folder of loadSettings().externalModelFolders) {
-      if (existsSync(folder)) scan(folder, true)
+    if (existsSync(MODELS_DIR)) await scan(MODELS_DIR, false)
+    const settings = await loadSettings()
+    for (const folder of settings.externalModelFolders) {
+      if (existsSync(folder)) await scan(folder, true)
     }
     return results
   })
-  ipcMain.handle('list-external-model-folders', () => loadSettings().externalModelFolders)
+  ipcMain.handle('list-external-model-folders', async () => (await loadSettings()).externalModelFolders)
   ipcMain.handle('add-external-model-folder', async () => {
     const r = await dialog.showOpenDialog({ title: 'Add External Model Folder', properties: ['openDirectory'] })
     if (r.canceled || !r.filePaths.length) return { success: false }
     const folder = r.filePaths[0]
-    const s = loadSettings()
+    const s = await loadSettings()
     if (!s.externalModelFolders.includes(folder)) {
       s.externalModelFolders.push(folder)
-      saveSettings(s)
+      await saveSettings(s)
     }
     return { success: true, folders: s.externalModelFolders }
   })
-  ipcMain.handle('remove-external-model-folder', (_e, folder: string) => {
-    const s = loadSettings()
+  ipcMain.handle('remove-external-model-folder', async (_e, folder: string) => {
+    const s = await loadSettings()
     s.externalModelFolders = s.externalModelFolders.filter(f => f !== folder)
-    saveSettings(s)
+    await saveSettings(s)
     return { success: true, folders: s.externalModelFolders }
   })
   ipcMain.handle('delete-model', (_e, filePath: string) => {
