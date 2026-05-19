@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useStore } from '../store/useStore'
 import { Gauge, Play, Loader2, AlertCircle } from 'lucide-react'
 
@@ -94,12 +94,28 @@ export default function BenchmarkView() {
   const [running, setRunning] = useState(false)
   const [rows, setRows] = useState<Record<string, unknown>[]>([])
   const [error, setError] = useState('')
+  const [progressLine, setProgressLine] = useState('')
+  const [elapsed, setElapsed] = useState(0)
+  const startedAt = useRef<number>(0)
+
+  useEffect(() => {
+    window.api.onBenchProgress(({ line }) => setProgressLine(line))
+    return () => window.api.removeBenchProgressListener()
+  }, [])
+
+  useEffect(() => {
+    if (!running) return
+    startedAt.current = Date.now()
+    setElapsed(0)
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt.current) / 1000)), 500)
+    return () => clearInterval(t)
+  }, [running])
 
   const enriched = useMemo(() => enrichRows(rows), [rows])
   const columns = useMemo(() => activeColumns(enriched), [enriched])
 
   async function handleRun() {
-    setError(''); setRows([])
+    setError(''); setRows([]); setProgressLine('')
     const backend = backends.find(b => b.name === backendName) || activeBackend
     if (!backend) { setError('No backend selected.'); return }
     if (!modelPath) { setError('Select a model.'); return }
