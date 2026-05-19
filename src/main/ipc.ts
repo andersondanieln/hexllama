@@ -474,7 +474,12 @@ export function registerIpcHandlers(): void {
         _e.sender.send('model-error', { id: opts.id, error: msg })
       })
       runningProcesses.set(opts.id, proc)
-      proc.on('exit', () => runningProcesses.delete(opts.id))
+      proc.on('exit', () => {
+        runningProcesses.delete(opts.id)
+        BrowserWindow.getAllWindows().forEach(win => {
+          win.webContents.send('model-exited', { id: opts.id })
+        })
+      })
       if (opts.openBrowser) {
         setTimeout(() => {
           openChatWindow(opts.port)
@@ -524,7 +529,7 @@ export function registerIpcHandlers(): void {
   })
   ipcMain.handle('stop-model', (_e, id: string) => {
     const proc = runningProcesses.get(id)
-    if (!proc) return { success: false, error: 'Not running' }
+    if (!proc) return { success: true, alreadyStopped: true }
     proc.kill(); runningProcesses.delete(id)
     return { success: true }
   })

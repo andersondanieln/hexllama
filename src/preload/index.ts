@@ -30,6 +30,10 @@ const api = {
     ipcRenderer.removeAllListeners('model-error')
     ipcRenderer.on('model-error', (_e, data) => cb(data))
   },
+  onModelExited: (cb: (data: { id: string }) => void) => {
+    ipcRenderer.removeAllListeners('model-exited')
+    ipcRenderer.on('model-exited', (_e, data) => cb(data))
+  },
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
   downloadRelease: (opts: object) => ipcRenderer.invoke('download-release', opts),
   cancelBackendDownload: () => ipcRenderer.invoke('cancel-backend-download'),

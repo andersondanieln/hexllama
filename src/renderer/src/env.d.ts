@@ -45,8 +45,9 @@ interface LlamaCppApi {
   exportTemplate: (template: object) => Promise<{ success: boolean }>
   pickModelFile: () => Promise<{ name: string; path: string } | null>
   runModel: (opts: { id: string; backendPath: string; exe: string; args: string[]; openBrowser: boolean; port: number }) => Promise<{ success: boolean; pid?: number; error?: string }>
-  stopModel: (id: string) => Promise<{ success: boolean; error?: string }>
+  stopModel: (id: string) => Promise<{ success: boolean; error?: string; alreadyStopped?: boolean }>
   onModelError: (cb: (data: { id: string; error: string }) => void) => void
+  onModelExited: (cb: (data: { id: string }) => void) => void
   checkUpdates: () => Promise<ReleaseInfo>
   downloadRelease: (opts: { url: string; version: string; assetName: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   cancelBackendDownload: () => Promise<{ success: boolean }>

@@ -73,6 +73,11 @@ export default function App() {
       useStore.getState().setCardStatus(data.id, 'error')
       alert(`Model execution error:\n\n${data.error}`)
     })
+    window.api.onModelExited((data) => {
+      const s = useStore.getState()
+      const card = s.cards.find(c => c.template.id === data.id)
+      if (card && card.status === 'running') s.setCardStatus(data.id, 'idle')
+    })
   }, [])
 
   useEffect(() => {
