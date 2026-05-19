@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { ExternalLink, Copy, Check, RefreshCw } from 'lucide-react'
 
+const IS_MACOS = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
+
 export default function ChatWindow({ url }: { url: string }) {
   const [copied, setCopied] = useState(false)
   const [showIframe, setShowIframe] = useState(false)
@@ -31,7 +33,7 @@ export default function ChatWindow({ url }: { url: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: 'var(--bg)' }}>
-      <div style={{ height: 48, WebkitAppRegion: 'drag', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ height: 48, WebkitAppRegion: 'drag', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: IS_MACOS ? 80 : 16, paddingRight: 16, background: 'var(--card-bg)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ fontWeight: 600, color: 'var(--text)', fontSize: 14 }}>Hexllama - Llama-UI</div>
         <div style={{ WebkitAppRegion: 'no-drag', display: 'flex', gap: 8 }}>
           <button className="btn btn-ghost" style={{ padding: '4px 12px', fontSize: 13 }} onClick={handleReload}>

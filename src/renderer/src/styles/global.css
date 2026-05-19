@@ -64,6 +64,7 @@ input, textarea, select {
   -webkit-app-region: no-drag;
   flex-shrink: 0;
 }
+.titlebar-macos .titlebar-logo { padding-left: 80px; }
 .titlebar-logo-img {
   height: 28px;
   width: auto;
