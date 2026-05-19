@@ -399,7 +399,9 @@ export function registerIpcHandlers(): void {
     const commandsPath = join(BACKEND_DIR, backendName, 'commands.json')
     if (!isSafePath(BACKEND_DIR, commandsPath)) return null
     if (existsSync(commandsPath)) return JSON.parse(readFileSync(commandsPath, 'utf-8'))
-    const defaultPath = join(APP_ROOT, 'resources', 'commands.json')
+    const defaultPath = app.isPackaged
+      ? join(process.resourcesPath, 'resources', 'commands.json')
+      : join(process.cwd(), 'resources', 'commands.json')
     if (existsSync(defaultPath)) return JSON.parse(readFileSync(defaultPath, 'utf-8'))
     return null
   })
