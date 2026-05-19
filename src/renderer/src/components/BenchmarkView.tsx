@@ -2,17 +2,19 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useStore } from '../store/useStore'
 import { Gauge, Play, Loader2, AlertCircle, ExternalLink } from 'lucide-react'
 
-interface SweepParam { flag: string; label: string; placeholder: string }
+interface SweepParam { flag: string; label: string; placeholder: string; defaultValue: string }
+// `defaultValue` is what llama-bench uses when the flag isn't passed (per its --help).
+// Shown next to the label so users know exactly what an empty input means.
 const SWEEP_PARAMS: SweepParam[] = [
-  { flag: '-t',    label: 'Threads',         placeholder: '4,6,8' },
-  { flag: '-ngl',  label: 'GPU Layers',      placeholder: '99,30,0' },
-  { flag: '-b',    label: 'Batch Size',      placeholder: '512,2048' },
-  { flag: '-ub',   label: 'Micro-Batch',     placeholder: '256,512' },
-  { flag: '-p',    label: 'Prompt Size',     placeholder: '128,512,1024' },
-  { flag: '-n',    label: 'Gen Size',        placeholder: '32,128' },
-  { flag: '-fa',   label: 'Flash Attn (0/1)', placeholder: '0,1' },
-  { flag: '-ctk',  label: 'KV Cache K',      placeholder: 'f16,q8_0' },
-  { flag: '-ctv',  label: 'KV Cache V',      placeholder: 'f16,q8_0' },
+  { flag: '-t',    label: 'Threads',         placeholder: 'e.g. 4,6,8',    defaultValue: '8' },
+  { flag: '-ngl',  label: 'GPU Layers',      placeholder: 'e.g. 99,30,0',  defaultValue: '99' },
+  { flag: '-b',    label: 'Batch Size',      placeholder: 'e.g. 512,2048', defaultValue: '2048' },
+  { flag: '-ub',   label: 'Micro-Batch',     placeholder: 'e.g. 256,512',  defaultValue: '512' },
+  { flag: '-p',    label: 'Prompt Size',     placeholder: 'e.g. 128,1024', defaultValue: '512' },
+  { flag: '-n',    label: 'Gen Size',        placeholder: 'e.g. 32,64',    defaultValue: '128' },
+  { flag: '-fa',   label: 'Flash Attn',      placeholder: 'e.g. 0,1',      defaultValue: '0' },
+  { flag: '-ctk',  label: 'KV Cache K',      placeholder: 'e.g. f16,q8_0', defaultValue: 'f16' },
+  { flag: '-ctv',  label: 'KV Cache V',      placeholder: 'e.g. f16,q8_0', defaultValue: 'f16' },
 ]
 
 export default function BenchmarkView() {
@@ -123,8 +125,9 @@ export default function BenchmarkView() {
       <div className="settings-section">
         <div className="settings-section-title"><Gauge size={14} /> Sweep Parameters</div>
         <p className="form-hint" style={{ padding: '0 16px 12px', fontSize: 12 }}>
-          Comma-separated values produce a sweep (e.g. <code>4,6,8</code>). Leave empty to use the
-          default. Ranges like <code>1024-4096+1024</code> are also supported.
+          Comma-separated values produce a sweep (e.g. <code>4,6,8</code>). Leave a field empty to
+          use llama-bench's single-value default (shown next to each label). Ranges like
+          <code>1024-4096+1024</code> are also supported.
         </p>
         <div className="cmd-grid">
           {SWEEP_PARAMS.map(p => {
@@ -133,7 +136,12 @@ export default function BenchmarkView() {
             return (
               <div key={p.flag} className={`cmd-row ${isActive ? 'active-param' : ''}`}>
                 <div className="cmd-label-group">
-                  <div className="cmd-label">{p.label}</div>
+                  <div className="cmd-label">
+                    {p.label}
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11, marginLeft: 8 }}>
+                      default: <span className="mono">{p.defaultValue}</span>
+                    </span>
+                  </div>
                   <div className="cmd-arg">{p.flag}</div>
                 </div>
                 <div className="cmd-input-group">
