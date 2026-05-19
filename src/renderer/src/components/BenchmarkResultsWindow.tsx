@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Loader2, FileText, Printer, Check } from 'lucide-react'
 import BenchmarkResultsTable, { rowsToMarkdown } from './BenchmarkResultsTable'
 import BenchmarkResultsChart from './BenchmarkResultsChart'
+import RecommendedSettings from './RecommendedSettings'
 
 const IS_MACOS = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
 
@@ -114,6 +115,9 @@ export default function BenchmarkResultsWindow() {
           </div>
         ) : (
           <>
+            <div style={{ marginBottom: 24 }}>
+              <RecommendedSettings rows={rows} />
+            </div>
             <div
               style={{
                 marginBottom: 24,

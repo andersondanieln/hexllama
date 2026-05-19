@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useStore } from '../store/useStore'
 import { Gauge, Play, Loader2, AlertCircle, ExternalLink, Copy, Check, ChevronDown } from 'lucide-react'
+import RecommendedSettings from './RecommendedSettings'
 
 interface SweepParam {
   flag: string
@@ -15,6 +16,74 @@ interface SweepParam {
 // `choices` populates a checkbox dropdown next to the input -- ticking values
 // rebuilds the comma list automatically so users don't have to type quant names etc.
 const KV_TYPES = ['f16', 'f32', 'bf16', 'q8_0', 'q4_0', 'q4_1', 'iq4_nl', 'q5_0', 'q5_1']
+const QUANT_KV = new Set(['q8_0', 'q4_0', 'q4_1', 'iq4_nl', 'q5_0', 'q5_1'])
+
+// Smart split-and-merge: if a sweep mixes fa=0 with quantized KV types, llama-bench
+// will fail mid-run. Split into the minimum number of valid sub-sweeps that each
+// run as a single llama-bench invocation.
+function splitSweep(params: Record<string, string>): { subs: Record<string, string>[]; skipped: number; faAutoset: boolean } {
+  const sweep = (s: string) => s.split(',').map(t => t.trim()).filter(Boolean)
+  const faVals = sweep(params['-fa'] || '')
+  const ctkVals = sweep(params['-ctk'] || '')
+  const ctvVals = sweep(params['-ctv'] || '')
+  const hasQuantKV = [...ctkVals, ...ctvVals].some(v => QUANT_KV.has(v))
+  const hasFaZero = faVals.includes('0')
+  const hasFaOne = faVals.includes('1')
+
+  // User left -fa empty but selected quant KV. llama-bench defaults to fa=0 and
+  // fails context init — auto-set -fa 1 since that's the only value that works.
+  if (hasQuantKV && faVals.length === 0) {
+    return { subs: [{ ...params, '-fa': '1' }], skipped: 0, faAutoset: true }
+  }
+
+  // No constraint conflict — pass the user's sweep through unchanged.
+  if (!hasQuantKV || !hasFaZero) return { subs: [params], skipped: 0, faAutoset: false }
+
+  // Need to split. fa=0 must only see non-quant ctk/ctv; fa=1 sees everything.
+  const nonQuantCtk = ctkVals.filter(v => !QUANT_KV.has(v))
+  const nonQuantCtv = ctvVals.filter(v => !QUANT_KV.has(v))
+  const total = Math.max(1, faVals.length) * Math.max(1, ctkVals.length) * Math.max(1, ctvVals.length)
+
+  const subs: Record<string, string>[] = []
+
+  // fa=0 branch — only emit if there's at least one valid (non-quant ctk, non-quant ctv) pair
+  if (nonQuantCtk.length > 0 && nonQuantCtv.length > 0) {
+    subs.push({ ...params, '-fa': '0', '-ctk': nonQuantCtk.join(','), '-ctv': nonQuantCtv.join(',') })
+  }
+  // fa=1 branch — keep ctk/ctv as the user typed
+  if (hasFaOne) {
+    subs.push({ ...params, '-fa': '1' })
+  }
+
+  // Count how many cartesian combos got dropped so we can tell the user.
+  const validFaZero = nonQuantCtk.length * nonQuantCtv.length * (hasFaZero ? 1 : 0)
+  const validFaOne = ctkVals.length * ctvVals.length * (hasFaOne ? 1 : 0)
+  const otherDimsMul = sweepCombos(params, ['-fa', '-ctk', '-ctv'])
+  const valid = (validFaZero + validFaOne) * otherDimsMul
+  const allCombos = total * otherDimsMul
+  return { subs: subs.length ? subs : [params], skipped: Math.max(0, allCombos - valid), faAutoset: false }
+}
+
+// Multiply the value-count of every swept flag except those listed in `exclude`.
+function sweepCombos(params: Record<string, string>, exclude: string[]): number {
+  let n = 1
+  for (const [k, v] of Object.entries(params)) {
+    if (exclude.includes(k)) continue
+    const count = v.split(',').map(t => t.trim()).filter(Boolean).length
+    if (count > 0) n *= count
+  }
+  return n
+}
+
+function describeSub(sub: Record<string, string>): string {
+  return SWEEP_PARAMS
+    .map(p => {
+      const v = (sub[p.flag] || '').trim()
+      return v ? `${p.flag} { ${v} }` : null
+    })
+    .filter(Boolean)
+    .join(' · ')
+}
 const SWEEP_PARAMS: SweepParam[] = [
   { flag: '-t',    label: 'Threads',     placeholder: 'e.g. 4,6,8',    defaultValue: '8',    validValues: '1..256',                                                                                  choices: ['2', '4', '6', '8', '10', '12'] },
   { flag: '-ngl',  label: 'GPU Layers',  placeholder: 'e.g. 99,30,0',  defaultValue: '99',   validValues: '0..99 (all)',                                                                              choices: ['0', '16', '32', '64', '99'] },
@@ -117,7 +186,20 @@ export default function BenchmarkView() {
   const [progressLines, setProgressLines] = useState<string[]>([])
   const [elapsed, setElapsed] = useState(0)
   const [errorCopied, setErrorCopied] = useState(false)
+  const [subSweepIdx, setSubSweepIdx] = useState(0)
+  const [subSweepTotal, setSubSweepTotal] = useState(0)
   const startedAt = useRef<number>(0)
+
+  // Live split plan — shown above the Run button so the user can see what'll happen.
+  const plan = (() => {
+    const cleaned: Record<string, string> = {}
+    for (const [k, v] of Object.entries(params)) {
+      const c = v.split(',').map(s => s.trim()).filter(Boolean).join(',')
+      if (c) cleaned[k] = c
+    }
+    return splitSweep(cleaned)
+  })()
+  const willSplit = plan.subs.length > 1 || plan.skipped > 0 || plan.faAutoset
 
   useEffect(() => {
     if (typeof window.api.onBenchProgress !== 'function') return
@@ -139,42 +221,46 @@ export default function BenchmarkView() {
     return () => clearInterval(t)
   }, [running])
 
-  // Detect the most common llama-bench config trap: quantized KV cache without
-  // Flash Attention enabled. llama.cpp refuses context init with that combo.
-  const kvFaWarning = (() => {
-    const FA_REQUIRED = /^(q8_0|q4_0|q4_1|iq4_nl|q5_0|q5_1)$/
-    const sweep = (s: string) => s.split(',').map(t => t.trim()).filter(Boolean)
-    const ctkVals = sweep(params['-ctk'] || '')
-    const ctvVals = sweep(params['-ctv'] || '')
-    const usesQuantKV = [...ctkVals, ...ctvVals].some(v => FA_REQUIRED.test(v))
-    if (!usesQuantKV) return null
-    const faVals = sweep(params['-fa'] || '')
-    // OK if all FA values are exactly "1". (If sweep includes both 0 and 1, fa=0 runs will fail.)
-    const allFaOne = faVals.length > 0 && faVals.every(v => v === '1')
-    if (allFaOne) return null
-    return 'Quantized KV cache types (q4_*, q5_*, q8_0, iq4_nl) require Flash Attn = 1. Set the Flash Attn field to "1" (or include "1" in the sweep — but "0" runs against these KV types will fail).'
-  })()
+  // splitSweep now auto-fixes the empty-fa + quant-KV case, so this warning is
+  // unreachable in normal usage — kept as a safety net for future edits.
+  const kvFaWarning: string | null = null
 
   async function handleRun() {
-    setError(''); setRows([]); setProgressLines([])
+    setError(''); setRows([]); setProgressLines([]); setSubSweepIdx(0); setSubSweepTotal(0)
     const backend = backends.find(b => b.name === backendName) || activeBackend
     if (!backend) { setError('No backend selected.'); return }
     if (!modelPath) { setError('Select a model.'); return }
+
+    const { subs } = plan
+    setSubSweepTotal(subs.length)
     setRunning(true)
+    const merged: Record<string, unknown>[] = []
     try {
-      const res = await window.api.benchRun({
-        backendPath: backend.path,
-        backendExe: backend.exe || undefined,
-        modelPath,
-        reps,
-        params
-      })
-      if (res.success) setRows(res.rows || [])
-      else setError(res.error || 'Run failed')
+      for (let i = 0; i < subs.length; i++) {
+        setSubSweepIdx(i + 1)
+        if (subs.length > 1) {
+          setProgressLines(prev => [...prev, `── sub-sweep ${i + 1}/${subs.length}: ${describeSub(subs[i])} ──`])
+        }
+        const res = await window.api.benchRun({
+          backendPath: backend.path,
+          backendExe: backend.exe || undefined,
+          modelPath,
+          reps,
+          params: subs[i]
+        })
+        if (res.success) {
+          merged.push(...(res.rows || []))
+        } else {
+          setError(res.error || 'Run failed')
+          break
+        }
+      }
+      setRows(merged)
     } catch (e) {
       setError(String(e))
     } finally {
       setRunning(false)
+      // Intentionally keep subSweepIdx/Total so the error banner can show which sub-sweep failed.
     }
   }
 
@@ -302,6 +388,44 @@ export default function BenchmarkView() {
         </div>
       )}
 
+      {willSplit && !running && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: '10px 14px',
+            background: 'rgba(59,130,246,0.06)',
+            border: '1.5px solid rgba(59,130,246,0.35)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text)',
+            fontSize: 12,
+            lineHeight: 1.5
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+            {plan.faAutoset
+              ? 'Auto-set -fa 1 (quantized KV requires Flash Attn)'
+              : `Auto-split into ${plan.subs.length} sub-sweep${plan.subs.length === 1 ? '' : 's'}`}
+            {plan.skipped > 0 && (
+              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
+                {' '}· skipping {plan.skipped} invalid combo{plan.skipped === 1 ? '' : 's'} (fa=0 + quantized KV)
+              </span>
+            )}
+          </div>
+          <ul style={{ margin: '4px 0 0', paddingLeft: 18, color: 'var(--text-secondary)' }}>
+            {plan.subs.map((s, i) => (
+              <li key={i} style={{ fontFamily: "'SF Mono','Fira Code',monospace", fontSize: 11 }}>
+                {describeSub(s)}
+              </li>
+            ))}
+          </ul>
+          {plan.subs.length > 1 && (
+            <div style={{ marginTop: 6, color: 'var(--text-muted)', fontSize: 11 }}>
+              Model will reload once per sub-sweep, then results merge into a single table.
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ marginTop: 20, display: 'flex', gap: 12, alignItems: 'center' }}>
         <button
           className="btn btn-primary"
@@ -320,15 +444,13 @@ export default function BenchmarkView() {
       </div>
 
       {running && (() => {
-        // Build a one-line summary of the active sweep so the user can see
-        // *what's being swept* when a failure mid-run kills the run.
-        const sweepSummary = SWEEP_PARAMS
-          .map(p => {
-            const v = (params[p.flag] || '').trim()
-            return v ? `${p.flag} { ${v} }` : null
-          })
-          .filter(Boolean)
-          .join(' · ')
+        // Show *what's currently running* — that's the active sub-sweep, not
+        // the user's original input (which may have invalid combos that the
+        // splitter filtered out).
+        const activeSub = subSweepTotal > 0 && subSweepIdx > 0
+          ? plan.subs[Math.min(subSweepIdx - 1, plan.subs.length - 1)]
+          : params
+        const sweepSummary = describeSub(activeSub)
         const latest = progressLines[progressLines.length - 1] || 'Loading model…'
         const recent = progressLines.slice(-4)
         return (
@@ -352,6 +474,11 @@ export default function BenchmarkView() {
                   {latest}
                 </div>
                 <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  {subSweepTotal > 1 && (
+                    <span style={{ color: 'var(--accent)', fontWeight: 600, marginRight: 8 }}>
+                      Sub-sweep {subSweepIdx}/{subSweepTotal}
+                    </span>
+                  )}
                   {Math.floor(elapsed / 60)}m {String(elapsed % 60).padStart(2, '0')}s elapsed
                 </div>
               </div>
@@ -402,16 +529,14 @@ export default function BenchmarkView() {
       })()}
 
       {error && (() => {
-        const sweepSummary = SWEEP_PARAMS
-          .map(p => {
-            const v = (params[p.flag] || '').trim()
-            return v ? `${p.flag} { ${v} }` : null
-          })
-          .filter(Boolean)
-          .join(' · ')
+        const failedSub = subSweepTotal > 0 && subSweepIdx > 0
+          ? plan.subs[Math.min(subSweepIdx - 1, plan.subs.length - 1)]
+          : params
+        const sweepSummary = describeSub(failedSub)
+        const subLabel = subSweepTotal > 1 ? ` (sub-sweep ${subSweepIdx}/${subSweepTotal})` : ''
         const lastFew = progressLines.slice(-6)
         const fullCopy =
-          (sweepSummary ? `Sweep: ${sweepSummary}\n\n` : '') +
+          (sweepSummary ? `Sweep at failure${subLabel}: ${sweepSummary}\n\n` : '') +
           (lastFew.length ? `Last lines before failure:\n${lastFew.join('\n')}\n\n` : '') +
           error
         return (
@@ -471,7 +596,7 @@ export default function BenchmarkView() {
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word'
               } as React.CSSProperties}>
-                <span style={{ opacity: 0.6 }}>Sweep at time of failure:</span> {sweepSummary}
+                <span style={{ opacity: 0.6 }}>Sweep at time of failure{subLabel}:</span> {sweepSummary}
               </div>
             )}
             {lastFew.length > 0 && (
@@ -497,34 +622,36 @@ export default function BenchmarkView() {
       })()}
 
       {rows.length > 0 && (
-        <div
-          style={{
-            marginTop: 24,
-            padding: '16px 18px',
-            background: 'var(--surface)',
-            border: '1.5px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
-            boxShadow: 'var(--shadow)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 16
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-              {rows.length} result{rows.length === 1 ? '' : 's'} ready
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-              Open the results window to view the table and export to Markdown or PDF.
-            </div>
-          </div>
-          <button
-            className="btn btn-primary"
-            onClick={() => window.api.benchShowResults(rows)}
+        <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <RecommendedSettings rows={rows} />
+          <div
+            style={{
+              padding: '16px 18px',
+              background: 'var(--surface)',
+              border: '1.5px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              boxShadow: 'var(--shadow)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16
+            }}
           >
-            <ExternalLink size={14} /> Open Results Window
-          </button>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                {rows.length} result{rows.length === 1 ? '' : 's'} ready
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                Open the results window to view the table and export to Markdown or PDF.
+              </div>
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={() => window.api.benchShowResults(rows)}
+            >
+              <ExternalLink size={14} /> Open Results Window
+            </button>
+          </div>
         </div>
       )}
     </div>
