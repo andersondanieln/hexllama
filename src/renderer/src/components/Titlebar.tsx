@@ -4,10 +4,11 @@ import { RefreshCw } from 'lucide-react'
 interface Props {
   onCheckUpdates: () => void
 }
+const IS_MACOS = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
 export default function Titlebar({ onCheckUpdates }: Props) {
   const { checkingUpdate } = useStore()
   return (
-    <header className="titlebar">
+    <header className={`titlebar${IS_MACOS ? ' titlebar-macos' : ''}`}>
       {}
       <div className="titlebar-logo">
         <img

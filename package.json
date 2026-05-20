@@ -1,6 +1,6 @@
 {
   "name": "hexllama",
-  "version": "1.0.0",
+  "version": "1.0.7",
   "description": "hexllama — a GUI for llama.cpp",
   "main": "out/main/index.js",
   "homepage": "./",

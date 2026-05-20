@@ -6,6 +6,9 @@ files:
   - out/main/**/*
   - out/preload/**/*
   - out/renderer/**/*
+extraResources:
+  - from: resources/
+    to: resources/
 win:
   target:
     - target: nsis

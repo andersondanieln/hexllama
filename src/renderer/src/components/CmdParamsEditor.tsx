@@ -123,7 +123,7 @@ export default function CmdParamsEditor({ templateId, args, onChange, modelPathF
             <div className="num-input-wrap">
               <button className="num-btn" onClick={() => handleUpdate(cmd.arg, Math.max((cmd.min ?? -Infinity), (Number(val) || 0) - 1))} disabled={disabled}>-</button>
               <input
-                type="number" className="cmd-input num" value={val} placeholder={cmd.default?.toString()} min={cmd.min} max={cmd.max}
+                type="number" className="cmd-input num" value={val} placeholder={cmd.default?.toString()} min={cmd.min} max={cmd.max} step="any"
                 onChange={(e) => handleUpdate(cmd.arg, e.target.value === '' ? '' : Number(e.target.value))}
                 disabled={disabled}
               />

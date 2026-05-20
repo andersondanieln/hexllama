@@ -12,7 +12,7 @@ function getNotifPref(): 'banner' | 'manual' {
 export default function SettingsView() {
   const { backends, activeBackend, setActiveBackend, setCommandsSchema, setBackends,
           releaseInfo, checkingUpdate, downloadProgress, setDownloadProgress, setCheckingUpdate, setReleaseInfo,
-          setModels } = useStore()
+          setModels, compactSidebarEnabled, setCompactSidebarEnabled } = useStore()
   const [downloading, setDownloading] = useState(false)
   const [selectedAssetUrl, setSelectedAssetUrl] = useState('')
   const [expandedEditor, setExpandedEditor] = useState<string | null>(null)
@@ -101,7 +101,7 @@ export default function SettingsView() {
         </div>
       </div>
 
-      {}
+      {/* Notifications Section */}
       <div className="settings-section">
         <div className="settings-section-title"><Bell /> Update Notifications</div>
         <div className="settings-row" style={{ borderBottom: 'none', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
@@ -129,6 +129,30 @@ export default function SettingsView() {
               The update banner will not be shown automatically. Use "Check Now" below anytime.
             </p>
           )}
+        </div>
+      </div>
+
+      {/* Sidebar Layout Section */}
+      <div className="settings-section">
+        <div className="settings-section-title"><Terminal /> Sidebar Layout</div>
+        <div className="settings-row" style={{ borderBottom: 'none', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            Toggle the sidebar mode. When auto-collapse is enabled, the sidebar collapses into a compact icon-only view and expands automatically to show full labels when you hover your mouse over it.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className={`launch-mode-btn ${!compactSidebarEnabled ? 'active' : ''}`}
+              onClick={() => setCompactSidebarEnabled(false)}
+            >
+              Full Sidebar (Default)
+            </button>
+            <button
+              className={`launch-mode-btn ${compactSidebarEnabled ? 'active' : ''}`}
+              onClick={() => setCompactSidebarEnabled(true)}
+            >
+              Auto-Collapse Sidebar
+            </button>
+          </div>
         </div>
       </div>
 

@@ -60,13 +60,14 @@ export default function ModelCard({ card }: Props) {
     const openBrowser = launchMode === 'chat'
     const res = await window.api.runModel({
       id: card.template.id,
+      name: card.template.name,
       backendPath: targetBackend.path,
       exe: targetBackend.exe,
       args,
       openBrowser,
       port: card.template.serverPort || 8080
     })
-    if (res.success) setCardStatus(card.template.id, 'running', res.pid)
+    if (res.success) setCardStatus(card.template.id, 'running', res.pid, res.port)
     else { alert(`Failed to run: ${res.error}`); setCardStatus(card.template.id, 'error') }
   }
   async function handleDelete() {
@@ -127,7 +128,7 @@ export default function ModelCard({ card }: Props) {
         </span>
         <span className="card-tag">
           <span className={`status-dot ${isRunning ? 'running' : 'idle'}`} />
-          {isRunning ? `Port ${card.template.serverPort}` : 'Ready'}
+          {isRunning ? `Port ${card.tempPort || card.template.serverPort || 8080}` : 'Ready'}
         </span>
       </div>
       {}
@@ -163,7 +164,7 @@ export default function ModelCard({ card }: Props) {
           <button
             className="btn card-run-btn"
             style={{ flex: 0.5, background: 'var(--accent)', color: 'var(--accent-fg)' }}
-            onClick={() => window.api.openChatWindow(card.template.serverPort || 8080)}
+            onClick={() => window.api.openChatWindow(card.tempPort || card.template.serverPort || 8080, card.template.name)}
             title="Open Chat Window"
           >
             <Globe size={14} /> Open Chat

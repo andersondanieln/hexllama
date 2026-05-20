@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useStore, ModelFileInfo, ModelDownloadInfo } from '../store/useStore'
 import {
   HardDrive, Download, Trash, Pause, Play, X, Link, FolderOpen,
-  Pencil, Check, AlertCircle, Loader2, RefreshCw, Search
+  Pencil, Check, AlertCircle, Loader2, RefreshCw, Search, FilePlus, FileText
 } from 'lucide-react'
 function formatBytes(b: number) {
   if (!b) return '—'
@@ -179,8 +179,13 @@ function DownloadRow({ dl }: { dl: ModelDownloadInfo }) {
 }
 
 function ModelFileRow({ model, onDeleted }: { model: ModelFileInfo; onDeleted: () => void }) {
+  const { cards, setShowCreateModal, setView, setPrefillModelPath } = useStore()
   const [editing, setEditing] = useState(false)
   const [newName, setNewName] = useState(model.name.replace(/\.[^.]+$/, ''))
+  const existingTemplate = useMemo(
+    () => cards.find(c => c.template.modelPath === model.path)?.template ?? null,
+    [cards, model.path]
+  )
   async function handleDelete() {
     if (!confirm(`Delete "${model.name}"? This cannot be undone.`)) return
     const res = await window.api.deleteModel(model.path)
@@ -192,6 +197,15 @@ function ModelFileRow({ model, onDeleted }: { model: ModelFileInfo; onDeleted: (
     const res = await window.api.renameModel(model.path, newName.trim())
     if (res.success) { setEditing(false); onDeleted()  }
     else alert('Rename failed: ' + res.error)
+  }
+  function handleTemplate() {
+    setView('cards')
+    if (existingTemplate) {
+      setShowCreateModal(true, existingTemplate)
+    } else {
+      setPrefillModelPath(model.path)
+      setShowCreateModal(true, null)
+    }
   }
   return (
     <div className="models-file-row">
@@ -213,6 +227,13 @@ function ModelFileRow({ model, onDeleted }: { model: ModelFileInfo; onDeleted: (
         </div>
       </div>
       <div className="models-file-actions">
+        <button
+          className="btn btn-ghost btn-icon"
+          onClick={handleTemplate}
+          title={existingTemplate ? `Edit template "${existingTemplate.name}"` : 'Create a new template for this model'}
+        >
+          {existingTemplate ? <FileText size={14} /> : <FilePlus size={14} />}
+        </button>
         <button className="btn btn-ghost btn-icon" onClick={() => setEditing(true)} title={model.external ? 'Rename disabled for external models' : 'Rename'} disabled={model.external}><Pencil size={14} /></button>
         <button className="btn btn-ghost btn-icon" onClick={() => window.api.openFolder(model.path.substring(0, model.path.lastIndexOf('/') === -1 ? model.path.lastIndexOf('\\') : model.path.lastIndexOf('/')))} title="Open folder"><FolderOpen size={14} /></button>
         <button className="btn btn-ghost btn-icon text-danger" onClick={handleDelete} title={model.external ? 'Delete disabled for external models' : 'Delete'} disabled={model.external}><Trash size={14} /></button>

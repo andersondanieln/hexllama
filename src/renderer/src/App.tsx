@@ -11,6 +11,7 @@ import CreateModal from './components/CreateModal'
 import UpdateBanner from './components/UpdateBanner'
 import ChatWindow from './components/ChatWindow'
 import { buildDefaultTemplate } from './utils/defaultTemplate'
+import { phrases } from './utils/phrases'
 import type { Template } from '../../shared/types'
 
 export default function App() {
@@ -22,10 +23,21 @@ export default function App() {
   }
 
   const [loading, setLoading] = React.useState(true)
+  const [phraseIndex, setPhraseIndex] = React.useState(0)
+  const [appVersion, setAppVersion] = React.useState('1.0.0')
 
   React.useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
+    const interval = setInterval(() => {
+      setPhraseIndex((prev) => (prev + 1) % phrases.length)
+    }, 500)
+
+    window.api.getVersion().then((v) => setAppVersion(v)).catch(() => {})
+
+    return () => {
+      clearTimeout(timer)
+      clearInterval(interval)
+    }
   }, [])
 
   const {
@@ -33,7 +45,7 @@ export default function App() {
     setBackends, setModels, setActiveBackend, setCommandsSchema,
     setCards, setPaths, setReleaseInfo, setCheckingUpdate,
     setHfDownload, removeHfDownload, addCard,
-    upsertModelDownload, removeModelDownload
+    upsertModelDownload, removeModelDownload, compactSidebarEnabled
   } = useStore()
 
   useEffect(() => {
@@ -72,6 +84,11 @@ export default function App() {
     window.api.onModelError((data) => {
       useStore.getState().setCardStatus(data.id, 'error')
       alert(`Model execution error:\n\n${data.error}`)
+    })
+    window.api.onModelExited((data) => {
+      const s = useStore.getState()
+      const card = s.cards.find(c => c.template.id === data.id)
+      if (card && card.status === 'running') s.setCardStatus(data.id, 'idle')
     })
   }, [])
 
@@ -192,8 +209,45 @@ export default function App() {
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         color: 'var(--text)'
       }}>
-        <img src="./icon.png" alt="Hexllama Icon" style={{ width: 128, height: 128, marginBottom: 24, imageRendering: 'crisp-edges' }} draggable={false} />
-        <h2 style={{ fontSize: 18, fontWeight: 600, letterSpacing: '0.5px' }}>All AI-Glory to the Llama.cpp</h2>
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes pixelateSplashIn {
+            0% {
+              opacity: 0;
+              transform: scale(0.5);
+              filter: blur(12px) contrast(200%);
+            }
+            40% {
+              opacity: 0.5;
+              transform: scale(0.75);
+              filter: blur(6px) contrast(150%);
+            }
+            75% {
+              opacity: 0.85;
+              transform: scale(0.9);
+              filter: blur(2px) contrast(120%);
+            }
+            100% {
+              opacity: 1;
+              transform: scale(1);
+              filter: blur(0) contrast(100%);
+            }
+          }
+        `}} />
+        <img
+          src="./icon.png"
+          alt="Hexllama Icon"
+          style={{
+            width: 96,
+            height: 96,
+            marginBottom: 24,
+            animation: 'pixelateSplashIn 1.5s steps(8) forwards',
+            imageRendering: 'pixelated'
+          }}
+          draggable={false}
+        />
+        <h2 style={{ fontSize: 18, fontWeight: 600, letterSpacing: '0.5px', minHeight: 28 }}>
+          {phrases[phraseIndex]}
+        </h2>
       </div>
     )
   }
@@ -211,13 +265,33 @@ export default function App() {
       {showCreateModal && <CreateModal />}
 
       <div
+        className={`footer-container ${compactSidebarEnabled ? 'footer-compact' : ''}`}
         style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0, height: 80, zIndex: 998,
+          position: 'fixed', bottom: 0, left: compactSidebarEnabled ? '60px' : '220px', right: 0, height: 80, zIndex: 998,
           background: 'linear-gradient(to top, var(--surface) 20%, transparent)',
           pointerEvents: 'none', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end',
-          padding: '0 24px 24px 0'
+          padding: '0 24px 24px 0',
+          transition: 'left 220ms cubic-bezier(0.4, 0, 0.2, 1)',
+          gap: 12
         }}
       >
+        <style dangerouslySetInnerHTML={{ __html: `
+          .main-layout:has(.sidebar-compact:hover) ~ .footer-compact,
+          .sidebar-compact:hover ~ .footer-compact {
+            left: 220px !important;
+          }
+        `}} />
+        <span
+          style={{
+            fontSize: 12,
+            color: 'var(--text-secondary)',
+            opacity: 0.5,
+            fontWeight: 500,
+            marginBottom: 3
+          }}
+        >
+          v{appVersion}
+        </span>
         <div
           onClick={() => window.api.openExternal('https://andercoder.com')}
           style={{

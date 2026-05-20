@@ -5,6 +5,7 @@ interface CardState {
   status: RunningStatus
   pid?: number
   expanded: boolean
+  tempPort?: number
 }
 export interface ModelFileInfo {
   name: string; path: string; size: number; folder: string; external?: boolean
@@ -26,6 +27,7 @@ interface AppStore {
   view: 'cards' | 'settings' | 'hub' | 'models' | 'about'
   showCreateModal: boolean
   editingTemplate: Template | null
+  prefillModelPath: string | null
   updateDismissed: boolean
   checkingUpdate: boolean
   downloadProgress: { percent: number; phase: string } | null
@@ -35,8 +37,11 @@ interface AppStore {
   hubQuery: string
   hubResults: any[]
   hubSelectedModelId: string | null
+  compactSidebarEnabled: boolean
+  setCompactSidebarEnabled: (enabled: boolean) => void
   setView: (v: AppStore['view']) => void
   setShowCreateModal: (show: boolean, template?: Template | null) => void
+  setPrefillModelPath: (path: string | null) => void
   setActiveBackend: (b: BackendVersion) => void
   setCommandsSchema: (s: CommandsSchema) => void
   setBackends: (b: BackendVersion[]) => void
@@ -58,19 +63,25 @@ interface AppStore {
   addCard: (template: Template) => void
   updateCard: (id: string, template: Partial<Template>) => void
   removeCard: (id: string) => void
-  setCardStatus: (id: string, status: RunningStatus, pid?: number) => void
+  setCardStatus: (id: string, status: RunningStatus, pid?: number, tempPort?: number) => void
   toggleCardExpanded: (id: string) => void
   collapseAllCards: () => void
 }
 export const useStore = create<AppStore>((set) => ({
   cards: [], backends: [], models: [], activeBackend: null,
   commandsSchema: null, releaseInfo: null, paths: null,
-  view: 'cards', showCreateModal: false, editingTemplate: null,
+  view: 'cards', showCreateModal: false, editingTemplate: null, prefillModelPath: null,
   updateDismissed: false, checkingUpdate: false, downloadProgress: null,
   templateSearch: '', modelDownloads: {}, hfDownloads: [],
   hubQuery: '', hubResults: [], hubSelectedModelId: null,
+  compactSidebarEnabled: localStorage.getItem('compactSidebar') === 'true',
+  setCompactSidebarEnabled: (enabled) => {
+    localStorage.setItem('compactSidebar', String(enabled))
+    set({ compactSidebarEnabled: enabled })
+  },
   setView: (v) => set({ view: v }),
   setShowCreateModal: (show, template = null) => set({ showCreateModal: show, editingTemplate: template }),
+  setPrefillModelPath: (path) => set({ prefillModelPath: path }),
   setActiveBackend: (b) => set({ activeBackend: b }),
   setCommandsSchema: (s) => set({ commandsSchema: s }),
   setBackends: (b) => set({ backends: b }),
@@ -99,8 +110,13 @@ export const useStore = create<AppStore>((set) => ({
     cards: s.cards.map(c => c.template.id === id ? { ...c, template: { ...c.template, ...partial, updatedAt: new Date().toISOString() } } : c)
   })),
   removeCard: (id) => set((s) => ({ cards: s.cards.filter(c => c.template.id !== id) })),
-  setCardStatus: (id, status, pid) => set((s) => ({
-    cards: s.cards.map(c => c.template.id === id ? { ...c, status, pid: pid ?? c.pid } : c)
+  setCardStatus: (id, status, pid, tempPort) => set((s) => ({
+    cards: s.cards.map(c => c.template.id === id ? {
+      ...c,
+      status,
+      pid: status === 'idle' || status === 'error' ? undefined : (pid ?? c.pid),
+      tempPort: status === 'idle' || status === 'error' ? undefined : (tempPort ?? c.tempPort)
+    } : c)
   })),
   toggleCardExpanded: (id) => set((s) => ({
     cards: s.cards.map(c => c.template.id === id ? { ...c, expanded: !c.expanded } : c)
