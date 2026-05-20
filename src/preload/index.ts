@@ -57,7 +57,18 @@ const api = {
   addExternalModelFolder: () => ipcRenderer.invoke('add-external-model-folder'),
   removeExternalModelFolder: (folder: string) => ipcRenderer.invoke('remove-external-model-folder', folder),
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
-  openChatWindow: (port: number) => ipcRenderer.invoke('open-chat-window', port),
+  openChatWindow: (port: number, name: string) => ipcRenderer.invoke('open-chat-window', port, name),
+  openDetachedChatWindow: (port: number, name: string) => ipcRenderer.invoke('open-detached-chat-window', port, name),
+  onAddChatTab: (cb: (data: { url: string; name: string }) => void) => {
+    ipcRenderer.removeAllListeners('add-chat-tab')
+    ipcRenderer.on('add-chat-tab', (_e, data) => cb(data))
+  },
+  notifyTabMoved: (url: string) => ipcRenderer.invoke('notify-tab-moved', url),
+  onTabMovedElsewhere: (cb: (data: { url: string }) => void) => {
+    ipcRenderer.removeAllListeners('tab-moved-elsewhere')
+    ipcRenderer.on('tab-moved-elsewhere', (_e, data) => cb(data))
+  },
+  getVersion: () => ipcRenderer.invoke('get-version'),
 }
 if (process.contextIsolated) {
   try {

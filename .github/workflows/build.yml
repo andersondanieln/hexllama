@@ -46,7 +46,6 @@ jobs:
           body: |
             ![Hexllama Logo](https://github.com/${{ github.repository }}/raw/main/assets/github-logo-hexllama.png)
 
-            ### What's Changed:
           draft: false
           prerelease: false
           generate_release_notes: true

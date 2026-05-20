@@ -44,7 +44,7 @@ interface LlamaCppApi {
   importTemplate: () => Promise<Template | null>
   exportTemplate: (template: object) => Promise<{ success: boolean }>
   pickModelFile: () => Promise<{ name: string; path: string } | null>
-  runModel: (opts: { id: string; backendPath: string; exe: string; args: string[]; openBrowser: boolean; port: number }) => Promise<{ success: boolean; pid?: number; error?: string }>
+  runModel: (opts: { id: string; name: string; backendPath: string; exe: string; args: string[]; openBrowser: boolean; port: number }) => Promise<{ success: boolean; pid?: number; error?: string }>
   stopModel: (id: string) => Promise<{ success: boolean; error?: string; alreadyStopped?: boolean }>
   onModelError: (cb: (data: { id: string; error: string }) => void) => void
   onModelExited: (cb: (data: { id: string }) => void) => void
@@ -65,7 +65,12 @@ interface LlamaCppApi {
   addExternalModelFolder: () => Promise<{ success: boolean; folders?: string[] }>
   removeExternalModelFolder: (folder: string) => Promise<{ success: boolean; folders: string[] }>
   openExternal: (url: string) => Promise<void>
-  openChatWindow: (port: number) => Promise<void>
+  openChatWindow: (port: number, name: string) => Promise<void>
+  openDetachedChatWindow: (port: number, name: string) => Promise<void>
+  onAddChatTab: (cb: (data: { url: string; name: string }) => void) => void
+  notifyTabMoved: (url: string) => Promise<void>
+  onTabMovedElsewhere: (cb: (data: { url: string }) => void) => void
+  getVersion: () => Promise<string>
 }
 declare global {
   interface Window { api: LlamaCppApi }
