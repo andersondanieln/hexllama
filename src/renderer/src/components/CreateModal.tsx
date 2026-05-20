@@ -37,7 +37,7 @@ function parseCommand(cmd: string): {
   return { modelPath, serverPort, args }
 }
 export default function CreateModal() {
-  const { setShowCreateModal, editingTemplate, backends, activeBackend, addCard, updateCard, models, prefillModelPath, setPrefillModelPath } = useStore()
+  const { setShowCreateModal, editingTemplate, backends, activeBackend, addCard, updateCard, models, prefillModelPath, setPrefillModelPath, cards } = useStore()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [backendVersion, setBackendVersion] = useState('')
@@ -65,8 +65,12 @@ export default function CreateModal() {
         setModelPath(prefillModelPath)
         setPrefillModelPath(null)
       }
+      const usedPorts = new Set(cards.map(c => c.template.serverPort))
+      let port = 8080
+      while (usedPorts.has(port)) port++
+      setServerPort(port)
     }
-  }, [editingTemplate, activeBackend, prefillModelPath, setPrefillModelPath])
+  }, [editingTemplate, activeBackend, prefillModelPath, setPrefillModelPath, cards])
   async function handlePickModel() {
     const file = await window.api.pickModelFile()
     if (file) setModelPath(file.path)

@@ -9,6 +9,7 @@ import https from 'https'
 import http from 'http'
 import { app } from 'electron'
 import extract from 'extract-zip'
+import net from 'net'
 const APP_ROOT = app.isPackaged ? join(app.getPath('userData')) : join(process.cwd())
 const MODELS_DIR    = join(APP_ROOT, 'models')
 const TEMPLATES_DIR = join(APP_ROOT, 'templates')
@@ -32,6 +33,24 @@ async function saveSettings(s: AppSettings): Promise<void> {
   await fsPromises.writeFile(SETTINGS_PATH, JSON.stringify(s, null, 2))
 }
 const runningProcesses = new Map<string, ChildProcess>()
+function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer()
+    server.once('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(false)
+      } else {
+        resolve(true)
+      }
+    })
+    server.once('listening', () => {
+      server.close(() => {
+        resolve(true)
+      })
+    })
+    server.listen(port, '127.0.0.1')
+  })
+}
 interface DownloadTask {
   id: string
   url: string
@@ -455,8 +474,13 @@ export function registerIpcHandlers(): void {
     if (r.canceled || !r.filePaths.length) return null
     return { name: basename(r.filePaths[0]), path: r.filePaths[0] }
   })
-  ipcMain.handle('run-model', (_e, opts: { id: string; backendPath: string; exe: string; args: string[]; openBrowser: boolean; port: number }) => {
+  ipcMain.handle('run-model', async (_e, opts: { id: string; backendPath: string; exe: string; args: string[]; openBrowser: boolean; port: number }) => {
     if (runningProcesses.has(opts.id)) return { success: false, error: 'Already running' }
+    const port = opts.port || 8080
+    const available = await isPortAvailable(port)
+    if (!available) {
+      return { success: false, error: `Port ${port} is already in use by another process or model template. Please use a different port in the template settings.` }
+    }
     const exePath = join(opts.backendPath, opts.exe)
     if (!isSafePath(BACKEND_DIR, exePath)) return { success: false, error: 'Access denied' }
     if (!existsSync(exePath)) return { success: false, error: `Executable not found: ${exePath}` }
@@ -482,7 +506,9 @@ export function registerIpcHandlers(): void {
       })
       if (opts.openBrowser) {
         setTimeout(() => {
-          openChatWindow(opts.port)
+          if (runningProcesses.has(opts.id)) {
+            openChatWindow(opts.port)
+          }
         }, 2500)
       }
       return { success: true, pid: proc.pid }
