@@ -78,6 +78,26 @@ To compile the application into an executable for your current OS:
 npm run build
 ```
 
+## Roadmap
+
+### Phase 1: Core Foundation (Completed)
+- [x] **Integrated Model Hub**: Hugging Face search & download direct from the app.
+- [x] **Smart Download Manager**: Pause/resume/cancel, auto-template generation based on hardware & quant level.
+- [x] **Template-Based Execution**: Run multiple models on different ports, reusable configuration templates.
+- [x] **Version and Backend Management**: Download and switch between different versions of `llama.cpp` binaries directly.
+- [x] **Visual Command Editor**: Graphical UI for configuring server parameters instead of terminal flags.
+
+### Phase 2: Enhanced Inference & Native UI (Short to Mid-Term)
+- [ ] **Built-in Chat Interface**: Native chat client to interact with models directly within Hexllama without launching external browser tabs.
+- [ ] **MTP (Multi-Token Prediction) Support**: Enable faster generation speeds using speculative decoding / MTP.
+- [ ] **TurboQuant Support**: Support optimized quantizations and execution configurations.
+- [ ] **Multi-Language Support**: Complete internationalization (i18n) to support Portuguese, English, Spanish, etc.
+
+### Phase 3: Multi-Backend & Advanced Engines (Long-Term)
+- [ ] **Alternative Backend Integration**: Expand support beyond `llama.cpp` to include:
+  - **MLX**: Native backend for Apple Silicon optimized performance.
+  - **vLLM / ExLlamaV2**: Support for high-throughput and GPU-optimized engines.
+
 ## Acknowledgements
 
 This project exists because of the incredible foundational work of Georgi Gerganov and the ggml-org community. Please consider supporting the development of [llama.cpp](https://github.com/ggerganov/llama.cpp).
