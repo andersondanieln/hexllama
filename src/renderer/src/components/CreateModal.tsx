@@ -49,6 +49,11 @@ export default function CreateModal() {
   const [showImport, setShowImport] = useState(false)
   const [importCmd, setImportCmd] = useState('')
   useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowCreateModal(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [setShowCreateModal])
+  useEffect(() => {
     if (editingTemplate) {
       setName(editingTemplate.name)
       setDescription(editingTemplate.description || '')

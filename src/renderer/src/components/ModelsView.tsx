@@ -21,6 +21,11 @@ function UrlDownloadModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(false)
   const [hfFiles, setHfFiles] = useState<{ name: string; size: number; downloadUrl: string }[]>([])
   const [error, setError] = useState('')
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   function parseHfRepoId(url: string): string | null {
     const m = url.match(/huggingface\.co\/([^/]+\/[^/]+?)(?:\/|$)/)
     return m ? m[1] : null
