@@ -330,6 +330,13 @@ export default function ModelsView() {
             <Loader2 size={16} className="spin" style={{ display: 'block', margin: '0 auto 8px' }} /> Loading...
           </div>
         )}
+        {loading && models.length > 0 && (
+          <>
+            {[0, 1, 2].map(i => (
+              <div key={`skel-${i}`} className="hub-card skeleton" style={{ height: 56, marginBottom: 8 }} />
+            ))}
+          </>
+        )}
         {!loading && models.length === 0 && (
           <div className="empty-state" style={{ padding: '40px 24px' }}>
             <div className="empty-state-icon"><HardDrive size={28} /></div>
