@@ -23,18 +23,7 @@ jobs:
       - name: Bump Version
         id: bump_version
         run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LATEST_TAG" ]; then
-            NEW_TAG="1.0.0"
-          else
-            CLEAN_TAG="${LATEST_TAG#v}"
-            IFS='.' read -r -a parts <<< "$CLEAN_TAG"
-            MAJOR="${parts[0]:-1}"
-            MINOR="${parts[1]:-0}"
-            PATCH="${parts[2]:-0}"
-            PATCH=$((PATCH + 1))
-            NEW_TAG="${MAJOR}.${MINOR}.${PATCH}"
-          fi
+          NEW_TAG=$(node -p "require('./package.json').version")
           echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
