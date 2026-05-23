@@ -130,6 +130,11 @@ export default function ModelCard({ card }: Props) {
           <span className={`status-dot ${isRunning ? 'running' : 'idle'}`} />
           {isRunning ? `Port ${card.tempPort || card.template.serverPort || 8080}` : 'Ready'}
         </span>
+        {card.template.tags?.map(t => (
+          <span key={t} className="card-tag" style={{ background: 'var(--surface-2, rgba(255,255,255,0.05))', border: '1px solid var(--border)' }}>
+            #{t}
+          </span>
+        ))}
       </div>
       {!modelExists && card.template.modelPath && (
         <div className="hub-error" style={{ margin: '0 18px 12px', fontSize: 12 }}>

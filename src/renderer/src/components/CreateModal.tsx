@@ -37,7 +37,6 @@ function parseCommand(cmd: string): {
   return { modelPath, serverPort, args }
 }
 export default function CreateModal() {
-  const { setShowCreateModal, editingTemplate, backends, activeBackend, addCard, updateCard, models, cards } = useStore()
   const { setShowCreateModal, editingTemplate, backends, activeBackend, addCard, updateCard, models, prefillModelPath, setPrefillModelPath, cards } = useStore()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -45,6 +44,7 @@ export default function CreateModal() {
   const [modelPath, setModelPath] = useState('')
   const [serverPort, setServerPort] = useState(8080)
   const [args, setArgs] = useState<Record<string, any>>({})
+  const [tagsStr, setTagsStr] = useState('')
   const [launchMode, setLaunchMode] = useState<'chat' | 'api'>('chat')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -57,18 +57,13 @@ export default function CreateModal() {
       setModelPath(editingTemplate.modelPath || '')
       setServerPort(editingTemplate.serverPort || 8080)
       setArgs(editingTemplate.args || {})
+      setTagsStr(editingTemplate.tags?.join(', ') || '')
       setLaunchMode(editingTemplate.launchMode || 'chat')
     } else {
       if (activeBackend) setBackendVersion(activeBackend.name)
       setArgs({})
+      setTagsStr('')
       setLaunchMode('chat')
-      const usedPorts = cards
-        .map(c => c.template.serverPort)
-        .filter((p): p is number => typeof p === 'number' && p >= 1024 && p <= 65535)
-      const next = usedPorts.length ? Math.max(...usedPorts) + 1 : 8080
-      setServerPort(next > 65535 ? 8080 : next)
-    }
-  }, [editingTemplate, activeBackend, cards])
       if (prefillModelPath) {
         setModelPath(prefillModelPath)
         setPrefillModelPath(null)
@@ -102,6 +97,7 @@ export default function CreateModal() {
       modelPath,
       serverPort,
       args,
+      tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean),
       launchMode
     }
     if (editingTemplate) {
@@ -118,6 +114,7 @@ export default function CreateModal() {
         modelPath,
         serverPort,
         args,
+        tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean),
         launchMode,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -196,6 +193,17 @@ export default function CreateModal() {
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 placeholder="Short description of this configuration..."
+              />
+            </div>
+            {}
+            <div className="form-group">
+              <label className="form-label">Tags (comma-separated)</label>
+              <input
+                type="text"
+                className="form-input"
+                value={tagsStr}
+                onChange={e => setTagsStr(e.target.value)}
+                placeholder="e.g. llama3, coding, 8b"
               />
             </div>
             {}
