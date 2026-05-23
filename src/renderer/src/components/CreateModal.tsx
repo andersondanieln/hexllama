@@ -37,6 +37,7 @@ function parseCommand(cmd: string): {
   return { modelPath, serverPort, args }
 }
 export default function CreateModal() {
+  const { setShowCreateModal, editingTemplate, backends, activeBackend, addCard, updateCard, models, cards } = useStore()
   const { setShowCreateModal, editingTemplate, backends, activeBackend, addCard, updateCard, models, prefillModelPath, setPrefillModelPath, cards } = useStore()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -215,6 +216,17 @@ export default function CreateModal() {
                   min={1024}
                   max={65535}
                 />
+                {(() => {
+                  const conflict = cards.find(c =>
+                    c.template.id !== editingTemplate?.id &&
+                    c.template.serverPort === serverPort
+                  )
+                  return conflict ? (
+                    <div className="form-hint" style={{ color: 'var(--warning)' }}>
+                      Port {serverPort} is already used by &ldquo;{conflict.template.name}&rdquo;. They cannot run at the same time.
+                    </div>
+                  ) : null
+                })()}
               </div>
             </div>
             {}
