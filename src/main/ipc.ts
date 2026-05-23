@@ -475,6 +475,11 @@ export function registerIpcHandlers(): void {
     if (r.canceled || !r.filePaths.length) return null
     return { name: basename(r.filePaths[0]), path: r.filePaths[0] }
   })
+  ipcMain.handle('pick-any-file', async () => {
+    const r = await dialog.showOpenDialog({ title: 'Select File', properties: ['openFile'] })
+    if (r.canceled || !r.filePaths.length) return null
+    return r.filePaths[0]
+  })
   ipcMain.handle('run-model', async (_e, opts: { id: string; name: string; backendPath: string; exe: string; args: string[]; openBrowser: boolean; port: number }) => {
     if (runningProcesses.has(opts.id)) return { success: false, error: 'Already running' }
     const port = opts.port || 8080
@@ -773,10 +778,14 @@ export function registerIpcHandlers(): void {
       shell.openExternal(url)
     }
   })
-  ipcMain.handle('hf-search', async (_e, query: string) => {
+  ipcMain.handle('hf-search', async (_e, query: string, sort = 'downloads', direction = -1) => {
     try {
-      const data = await fetchJson(`https://huggingface.co/api/models?search=${encodeURIComponent(query)}&filter=gguf&limit=24&sort=downloads&direction=-1`) as any[]
-      return data.map(m => ({ id: m.id, author: m.author || m.id.split('/')[0] || '', name: m.id.split('/').pop() || m.id, downloads: m.downloads || 0, likes: m.likes || 0, tags: m.tags || [], lastModified: m.lastModified || '' }))
+      const data = await fetchJson(`https://huggingface.co/api/models?search=${encodeURIComponent(query)}&filter=gguf&limit=24&sort=${sort}&direction=${direction}`) as any
+      if (!Array.isArray(data)) {
+        if (data && data.error) return { error: data.error }
+        return { error: 'Unknown response from Hugging Face' }
+      }
+      return data.map(m => ({ id: m.id, author: m.author || m.id.split('/')[0] || '', name: m.id.split('/').pop() || m.id, downloads: m.downloads || 0, likes: m.likes || 0, tags: m.tags || [], lastModified: m.createdAt || m.lastModified || '' }))
     } catch (err) { return { error: String(err) } }
   })
   ipcMain.handle('hf-get-files', async (_e, repoId: string) => {

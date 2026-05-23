@@ -37,6 +37,8 @@ interface AppStore {
   hubQuery: string
   hubResults: any[]
   hubSelectedModelId: string | null
+  hubSort: string
+  hubDirection: number
   compactSidebarEnabled: boolean
   setCompactSidebarEnabled: (enabled: boolean) => void
   setView: (v: AppStore['view']) => void
@@ -60,6 +62,8 @@ interface AppStore {
   setHubQuery: (q: string) => void
   setHubResults: (r: any[]) => void
   setHubSelectedModelId: (id: string | null) => void
+  setHubSort: (s: string) => void
+  setHubDirection: (d: number) => void
   addCard: (template: Template) => void
   updateCard: (id: string, template: Partial<Template>) => void
   removeCard: (id: string) => void
@@ -73,7 +77,7 @@ export const useStore = create<AppStore>((set) => ({
   view: 'cards', showCreateModal: false, editingTemplate: null, prefillModelPath: null,
   updateDismissed: false, checkingUpdate: false, downloadProgress: null,
   templateSearch: '', modelDownloads: {}, hfDownloads: [],
-  hubQuery: '', hubResults: [], hubSelectedModelId: null,
+  hubQuery: '', hubResults: [], hubSelectedModelId: null, hubSort: 'downloads', hubDirection: -1,
   compactSidebarEnabled: localStorage.getItem('compactSidebar') === 'true',
   setCompactSidebarEnabled: (enabled) => {
     localStorage.setItem('compactSidebar', String(enabled))
@@ -105,6 +109,8 @@ export const useStore = create<AppStore>((set) => ({
   setHubQuery: (q) => set({ hubQuery: q }),
   setHubResults: (r) => set({ hubResults: r }),
   setHubSelectedModelId: (id) => set({ hubSelectedModelId: id }),
+  setHubSort: (s) => set({ hubSort: s }),
+  setHubDirection: (d) => set({ hubDirection: d }),
   addCard: (template) => set((s) => ({ cards: [...s.cards, { template, status: 'idle', expanded: false }] })),
   updateCard: (id, partial) => set((s) => ({
     cards: s.cards.map(c => c.template.id === id ? { ...c, template: { ...c.template, ...partial, updatedAt: new Date().toISOString() } } : c)

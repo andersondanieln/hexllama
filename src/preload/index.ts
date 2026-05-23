@@ -24,6 +24,7 @@ const api = {
   importTemplate: () => ipcRenderer.invoke('import-template'),
   exportTemplate: (template: object) => ipcRenderer.invoke('export-template', template),
   pickModelFile: () => ipcRenderer.invoke('pick-model-file'),
+  pickAnyFile: () => ipcRenderer.invoke('pick-any-file'),
   runModel: (opts: object) => ipcRenderer.invoke('run-model', opts),
   stopModel: (id: string) => ipcRenderer.invoke('stop-model', id),
   onModelError: (cb: (data: { id: string; error: string }) => void) => {
@@ -42,7 +43,7 @@ const api = {
     ipcRenderer.on('download-progress', (_event, data) => callback(data))
   },
   removeDownloadListener: () => ipcRenderer.removeAllListeners('download-progress'),
-  hfSearch: (query: string) => ipcRenderer.invoke('hf-search', query),
+  hfSearch: (query: string, sort?: string, direction?: number) => ipcRenderer.invoke('hf-search', query, sort, direction),
   hfGetFiles: (repoId: string) => ipcRenderer.invoke('hf-get-files', repoId),
   hfDownloadModel: (opts: object) => ipcRenderer.invoke('hf-download-model', opts),
   hfOpenModelsDir: () => ipcRenderer.invoke('hf-open-models-dir'),

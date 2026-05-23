@@ -44,6 +44,7 @@ export default function CreateModal() {
   const [modelPath, setModelPath] = useState('')
   const [serverPort, setServerPort] = useState(8080)
   const [args, setArgs] = useState<Record<string, any>>({})
+  const [tagsStr, setTagsStr] = useState('')
   const [launchMode, setLaunchMode] = useState<'chat' | 'api'>('chat')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -61,10 +62,12 @@ export default function CreateModal() {
       setModelPath(editingTemplate.modelPath || '')
       setServerPort(editingTemplate.serverPort || 8080)
       setArgs(editingTemplate.args || {})
+      setTagsStr(editingTemplate.tags?.join(', ') || '')
       setLaunchMode(editingTemplate.launchMode || 'chat')
     } else {
       if (activeBackend) setBackendVersion(activeBackend.name)
       setArgs({})
+      setTagsStr('')
       setLaunchMode('chat')
       if (prefillModelPath) {
         setModelPath(prefillModelPath)
@@ -99,6 +102,7 @@ export default function CreateModal() {
       modelPath,
       serverPort,
       args,
+      tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean),
       launchMode
     }
     if (editingTemplate) {
@@ -115,6 +119,7 @@ export default function CreateModal() {
         modelPath,
         serverPort,
         args,
+        tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean),
         launchMode,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -196,6 +201,17 @@ export default function CreateModal() {
               />
             </div>
             {}
+            <div className="form-group">
+              <label className="form-label">Tags (comma-separated)</label>
+              <input
+                type="text"
+                className="form-input"
+                value={tagsStr}
+                onChange={e => setTagsStr(e.target.value)}
+                placeholder="e.g. llama3, coding, 8b"
+              />
+            </div>
+            {}
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Backend Version</label>
@@ -220,11 +236,17 @@ export default function CreateModal() {
                   min={1024}
                   max={65535}
                 />
-                {(serverPort < 1024 || serverPort > 65535) && (
-                  <div className="form-hint" style={{ color: 'var(--danger)' }}>
-                    Port must be between 1024 and 65535.
-                  </div>
-                )}
+                {(() => {
+                  const conflict = cards.find(c =>
+                    c.template.id !== editingTemplate?.id &&
+                    c.template.serverPort === serverPort
+                  )
+                  return conflict ? (
+                    <div className="form-hint" style={{ color: 'var(--warning)' }}>
+                      Port {serverPort} is already used by &ldquo;{conflict.template.name}&rdquo;. They cannot run at the same time.
+                    </div>
+                  ) : null
+                })()}
               </div>
             </div>
             {}

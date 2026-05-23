@@ -234,17 +234,17 @@ input, textarea, select {
   transition: border-color var(--transition);
 }
 .cmd-input:focus, .cmd-select:focus, .cmd-textarea:focus { border-color: var(--accent); }
-.cmd-input { padding: 5px 9px; width: 110px; }
-.cmd-input[type="number"] { width: 90px; }
-.cmd-select { padding: 5px 24px 5px 9px; appearance: none; cursor: pointer; min-width: 90px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b6b6b'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
+.cmd-input { padding: 5px 9px; width: 240px; }
+.cmd-input[type="number"] { width: 120px; }
+.cmd-select { padding: 5px 24px 5px 9px; appearance: none; cursor: pointer; min-width: 160px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b6b6b'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
 .cmd-textarea { padding: 7px 9px; width: 100%; resize: vertical; min-height: 60px; font-size: 11px; margin-top: 6px; display: block; }
 .cmd-row-full { grid-template-columns: 1fr; }
 .num-input-wrap { display: flex; align-items: center; gap: 0; }
-.num-btn { width: 24px; height: 28px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text-secondary); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: background var(--transition); }
+.num-btn { width: 28px; height: 30px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text-secondary); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: background var(--transition); }
 .num-btn:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); border-right: none; }
 .num-btn:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; border-left: none; }
 .num-btn:hover { background: var(--border); color: var(--text); }
-.cmd-input.num { border-radius: 0; text-align: center; width: 68px; }
+.cmd-input.num { border-radius: 0; text-align: center; width: 90px; height: 30px; }
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.4);
   display: flex; align-items: center; justify-content: center;
@@ -449,6 +449,33 @@ input, textarea, select {
   box-shadow: var(--shadow);
 }
 .hub-search-bar:focus-within { border-color: var(--accent); }
+.hub-sort-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+.hub-sort-select {
+  border: none;
+  background: transparent;
+  padding: 5px 20px 5px 8px;
+  font-size: 13px;
+  font-family: var(--font);
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  min-width: 110px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b6b6b'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  pointer-events: auto;
+}
+.hub-sort-select:hover {
+  color: var(--text);
+}
 .hub-search-input {
   flex: 1; border: none; background: transparent;
   font-size: 14px; font-family: var(--font); color: var(--text); outline: none;
@@ -503,8 +530,8 @@ input, textarea, select {
 .hub-card-body { flex: 1; min-width: 0; }
 .hub-card-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .hub-card-author { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
-.hub-card-stats { display: flex; gap: 10px; margin-top: 6px; font-size: 11px; color: var(--text-secondary); }
-.hub-card-stats span { display: flex; align-items: center; gap: 3px; }
+.hub-card-stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 11px; color: var(--text-secondary); }
+.hub-card-stats span { display: flex; align-items: center; gap: 4px; background: var(--bg); border: 1px solid var(--border); padding: 3px 8px; border-radius: var(--radius-sm); font-weight: 500; }
 .hub-card.skeleton {
   height: 72px; background: linear-gradient(90deg, var(--bg) 25%, var(--border) 50%, var(--bg) 75%);
   background-size: 200% 100%; animation: shimmer 1.4s infinite;

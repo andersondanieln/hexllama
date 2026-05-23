@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../store/useStore'
 import {
   Search, Download, Heart, ChevronDown, ChevronLeft,
-  FolderOpen, CheckCircle, Loader2, X, AlertCircle, Box, Pause, Play
+  FolderOpen, CheckCircle, Loader2, X, AlertCircle, Box, Pause, Play,
+  ArrowDown, ArrowUp, Calendar
 } from 'lucide-react'
 interface HfModel {
   id: string
@@ -51,7 +52,8 @@ export default function HuggingFaceView() {
   const {
     hfDownloads, setHfDownload, removeHfDownload,
     hubQuery, hubResults, hubSelectedModelId,
-    setHubQuery, setHubResults, setHubSelectedModelId
+    setHubQuery, setHubResults, setHubSelectedModelId,
+    hubSort, hubDirection, setHubSort, setHubDirection
   } = useStore()
 
   const selectedModel = (hubResults as HfModel[]).find(m => m.id === hubSelectedModelId) ?? null
@@ -70,7 +72,7 @@ export default function HuggingFaceView() {
     }
   }, [])
 
-  const doSearch = useCallback(async (q: string) => {
+  const doSearch = useCallback(async (q: string, sort = hubSort, direction = hubDirection) => {
     if (!q.trim()) return
     setHubQuery(q)          
     setLoading(true)
@@ -78,7 +80,7 @@ export default function HuggingFaceView() {
     setHubResults([])
     setHubSelectedModelId(null)
     try {
-      const res = await window.api.hfSearch(q.trim())
+      const res = await window.api.hfSearch(q.trim(), sort, direction)
       if ('error' in res) throw new Error((res as any).error)
       setHubResults(res as HfModel[])
     } catch (e: any) {
@@ -86,7 +88,7 @@ export default function HuggingFaceView() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [hubSort, hubDirection])
 
   async function fetchFiles(model: HfModel) {
     setFiles([])
@@ -152,6 +154,45 @@ export default function HuggingFaceView() {
             <X size={14} />
           </button>
         )}
+        <div className="hub-sort-divider" />
+        <select
+          className="hub-sort-select"
+          value={hubSort}
+          onChange={(e) => {
+            const sort = e.target.value
+            setHubSort(sort)
+            // HF API doesn't support ascending for downloads/likes
+            let newDirection = hubDirection
+            if ((sort === 'downloads' || sort === 'likes') && hubDirection === 1) {
+              newDirection = -1
+              setHubDirection(-1)
+            }
+            if (inputValue.trim()) {
+              doSearch(inputValue, sort, newDirection)
+            }
+          }}
+        >
+          <option value="downloads">Downloads</option>
+          <option value="likes">Likes</option>
+          <option value="createdAt">Date Created</option>
+          <option value="lastModified">Last Updated</option>
+        </select>
+        {hubSort !== 'downloads' && hubSort !== 'likes' && (
+          <button
+            className="btn btn-ghost btn-icon"
+            style={{ padding: '6px', marginLeft: '-4px', marginRight: '4px' }}
+            title={hubDirection === -1 ? 'Descending' : 'Ascending'}
+            onClick={() => {
+              const newDir = hubDirection === -1 ? 1 : -1
+              setHubDirection(newDir)
+              if (inputValue.trim()) {
+                doSearch(inputValue, hubSort, newDir)
+              }
+            }}
+          >
+            {hubDirection === -1 ? <ArrowDown size={15} /> : <ArrowUp size={15} />}
+          </button>
+        )}
         <button className="btn btn-primary" onClick={() => doSearch(inputValue)} disabled={loading || !inputValue.trim()}>
           {loading ? <Loader2 size={14} className="spin" /> : <Search size={14} />}
           Search
@@ -206,6 +247,7 @@ export default function HuggingFaceView() {
                   <div className="hub-card-stats">
                     <span><Download size={11} /> {formatNumber(model.downloads)}</span>
                     <span><Heart size={11} /> {formatNumber(model.likes)}</span>
+                    {model.lastModified && <span><Calendar size={11} /> {new Date(model.lastModified).toLocaleDateString()}</span>}
                   </div>
                 </div>
                 <ChevronDown size={14} style={{ transform: 'rotate(-90deg)', flexShrink: 0, color: 'var(--text-muted)' }} />

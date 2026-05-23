@@ -20,10 +20,12 @@ export default function CardsView() {
     }
   }
   const filtered = templateSearch.trim()
-    ? cards.filter(c =>
-        c.template.name.toLowerCase().includes(templateSearch.toLowerCase()) ||
-        (c.template.description || '').toLowerCase().includes(templateSearch.toLowerCase())
-      )
+    ? cards.filter(c => {
+        const q = templateSearch.toLowerCase()
+        return c.template.name.toLowerCase().includes(q) ||
+               (c.template.description || '').toLowerCase().includes(q) ||
+               c.template.tags?.some(t => t.toLowerCase().includes(q))
+      })
     : cards
   return (
     <div>

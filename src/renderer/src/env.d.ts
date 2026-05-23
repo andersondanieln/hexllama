@@ -44,6 +44,7 @@ interface LlamaCppApi {
   importTemplate: () => Promise<Template | null>
   exportTemplate: (template: object) => Promise<{ success: boolean }>
   pickModelFile: () => Promise<{ name: string; path: string } | null>
+  pickAnyFile: () => Promise<string | null>
   runModel: (opts: { id: string; name: string; backendPath: string; exe: string; args: string[]; openBrowser: boolean; port: number }) => Promise<{ success: boolean; pid?: number; error?: string }>
   stopModel: (id: string) => Promise<{ success: boolean; error?: string; alreadyStopped?: boolean }>
   onModelError: (cb: (data: { id: string; error: string }) => void) => void
@@ -53,7 +54,7 @@ interface LlamaCppApi {
   cancelBackendDownload: () => Promise<{ success: boolean }>
   onDownloadProgress: (callback: (data: { percent: number; phase: string }) => void) => void
   removeDownloadListener: () => void
-  hfSearch: (query: string) => Promise<HfModelResult[] | { error: string }>
+  hfSearch: (query: string, sort?: string, direction?: number) => Promise<HfModelResult[] | { error: string }>
   hfGetFiles: (repoId: string) => Promise<HfFileResult[] | { error: string }>
   hfDownloadModel: (opts: { repoId: string; filename: string; downloadUrl: string }) => Promise<{ success: boolean; error?: string }>
   hfOpenModelsDir: () => Promise<void>

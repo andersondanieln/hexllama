@@ -39,6 +39,7 @@ export interface Template {
   modelPath?: string
   serverPort: number
   args: Record<string, string | number | boolean | null>
+  tags?: string[]
   launchMode?: 'chat' | 'api'
   createdAt: string
   updatedAt: string
