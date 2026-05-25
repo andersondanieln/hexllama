@@ -45,6 +45,7 @@ interface LlamaCppApi {
   exportTemplate: (template: object) => Promise<{ success: boolean }>
   pickModelFile: () => Promise<{ name: string; path: string } | null>
   pickAnyFile: () => Promise<string | null>
+  fileExists: (path: string) => Promise<boolean>
   runModel: (opts: { id: string; name: string; backendPath: string; exe: string; args: string[]; openBrowser: boolean; port: number }) => Promise<{ success: boolean; pid?: number; error?: string }>
   stopModel: (id: string) => Promise<{ success: boolean; error?: string; alreadyStopped?: boolean }>
   onModelError: (cb: (data: { id: string; error: string }) => void) => void

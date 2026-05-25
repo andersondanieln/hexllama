@@ -25,6 +25,7 @@ const api = {
   exportTemplate: (template: object) => ipcRenderer.invoke('export-template', template),
   pickModelFile: () => ipcRenderer.invoke('pick-model-file'),
   pickAnyFile: () => ipcRenderer.invoke('pick-any-file'),
+  fileExists: (path: string) => ipcRenderer.invoke('file-exists', path),
   runModel: (opts: object) => ipcRenderer.invoke('run-model', opts),
   stopModel: (id: string) => ipcRenderer.invoke('stop-model', id),
   onModelError: (cb: (data: { id: string; error: string }) => void) => {
