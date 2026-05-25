@@ -512,6 +512,31 @@ export function registerIpcHandlers(): void {
     let finalPort = port
     let finalArgs = [...opts.args]
 
+    // `--reasoning off` is only a template hint. To actually hide thinking
+    // from the user's chat content for Qwen3-class templates we need two more:
+    //   --reasoning-budget 0     suppress generated thinking tokens
+    //   --reasoning-format deepseek  extract any thinking-block wrappers
+    //                                (Qwen3's template emits empty <think>…</think>
+    //                                even when disabled) into reasoning_content
+    //                                instead of leaving them inline in content.
+    // Auto-inject so the user's "thinking off" intent actually takes effect
+    // without requiring every template to remember all three flags.
+    const reasoningIdx = finalArgs.indexOf('--reasoning')
+    const reasoningVal = reasoningIdx !== -1 && reasoningIdx + 1 < finalArgs.length ? finalArgs[reasoningIdx + 1] : null
+    if (reasoningVal === 'off') {
+      if (finalArgs.indexOf('--reasoning-budget') === -1) {
+        finalArgs.push('--reasoning-budget', '0')
+      }
+      const fmtIdx = finalArgs.indexOf('--reasoning-format')
+      if (fmtIdx === -1) {
+        finalArgs.push('--reasoning-format', 'deepseek')
+      } else if (fmtIdx + 1 < finalArgs.length && finalArgs[fmtIdx + 1] === 'none') {
+        // `none` leaves thoughts unparsed in content, defeating "off". Promote
+        // to deepseek so the parser strips them out.
+        finalArgs[fmtIdx + 1] = 'deepseek'
+      }
+    }
+
     if (!available) {
       const response = await dialog.showMessageBox({
         type: 'question',
