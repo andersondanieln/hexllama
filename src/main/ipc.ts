@@ -21,16 +21,26 @@ for (const dir of [MODELS_DIR, TEMPLATES_DIR, BACKEND_DIR]) {
 function isSafePath(base: string, target: string): boolean {
   return resolve(target).startsWith(resolve(base))
 }
-interface AppSettings { externalModelFolders: string[] }
+interface AppSettings { externalModelFolders: string[]; downloadFolder: string }
 async function loadSettings(): Promise<AppSettings> {
   try {
-    if (!existsSync(SETTINGS_PATH)) return { externalModelFolders: [] }
+    if (!existsSync(SETTINGS_PATH)) return { externalModelFolders: [], downloadFolder: '' }
     const data = JSON.parse(await fsPromises.readFile(SETTINGS_PATH, 'utf-8'))
-    return { externalModelFolders: Array.isArray(data.externalModelFolders) ? data.externalModelFolders : [] }
-  } catch { return { externalModelFolders: [] } }
+    return {
+      externalModelFolders: Array.isArray(data.externalModelFolders) ? data.externalModelFolders : [],
+      downloadFolder: typeof data.downloadFolder === 'string' ? data.downloadFolder : ''
+    }
+  } catch { return { externalModelFolders: [], downloadFolder: '' } }
 }
 async function saveSettings(s: AppSettings): Promise<void> {
   await fsPromises.writeFile(SETTINGS_PATH, JSON.stringify(s, null, 2))
+}
+async function resolveDownloadDir(): Promise<string> {
+  const s = await loadSettings()
+  if (s.downloadFolder && s.externalModelFolders.includes(s.downloadFolder) && existsSync(s.downloadFolder)) {
+    return s.downloadFolder
+  }
+  return MODELS_DIR
 }
 const runningProcesses = new Map<string, ChildProcess>()
 let sharedChatWindow: BrowserWindow | null = null
@@ -204,8 +214,22 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('remove-external-model-folder', async (_e, folder: string) => {
     const s = await loadSettings()
     s.externalModelFolders = s.externalModelFolders.filter(f => f !== folder)
+    if (s.downloadFolder === folder) s.downloadFolder = ''
     await saveSettings(s)
     return { success: true, folders: s.externalModelFolders }
+  })
+  ipcMain.handle('get-download-folder', async () => {
+    const s = await loadSettings()
+    return s.downloadFolder
+  })
+  ipcMain.handle('set-download-folder', async (_e, folder: string) => {
+    const s = await loadSettings()
+    if (folder && !s.externalModelFolders.includes(folder)) {
+      return { success: false, error: 'Folder not in external model folders' }
+    }
+    s.downloadFolder = folder || ''
+    await saveSettings(s)
+    return { success: true, downloadFolder: s.downloadFolder }
   })
   ipcMain.handle('delete-model', (_e, filePath: string) => {
     try {
@@ -232,7 +256,7 @@ export function registerIpcHandlers(): void {
       return { success: false, error: String(err) }
     }
   })
-  ipcMain.handle('start-model-download', (event, opts: {
+  ipcMain.handle('start-model-download', async (event, opts: {
     url: string
     filename: string
     repoId?: string
@@ -244,8 +268,9 @@ export function registerIpcHandlers(): void {
       if (t.phase === 'downloading') return { success: false, error: 'Already downloading' }
     }
     const folder = opts.modelFolder || opts.repoId?.split('/').pop() || 'downloads'
-    const destDir = join(MODELS_DIR, folder)
-    if (!isSafePath(MODELS_DIR, destDir)) return { success: false, error: 'Access denied' }
+    const downloadRoot = await resolveDownloadDir()
+    const destDir = join(downloadRoot, folder)
+    if (!isSafePath(downloadRoot, destDir)) return { success: false, error: 'Access denied' }
     if (!existsSync(destDir)) mkdirSync(destDir, { recursive: true })
     const finalPath = join(destDir, opts.filename)
     const tmpPath = finalPath + '.tmp'
@@ -798,14 +823,16 @@ export function registerIpcHandlers(): void {
       }))
     } catch (err) { return { error: String(err) } }
   })
-  ipcMain.handle('hf-download-model', (_event, opts: { repoId: string; filename: string; downloadUrl: string }) => {
+  ipcMain.handle('hf-download-model', async (_event, opts: { repoId: string; filename: string; downloadUrl: string }) => {
     const id = opts.filename
     if (downloadTasks.has(id)) {
       const existing = downloadTasks.get(id)!
       if (existing.phase === 'downloading') return { success: false, error: 'Already downloading' }
     }
     const folder = opts.repoId.split('/').pop() || 'downloads'
-    const destDir = join(MODELS_DIR, folder)
+    const downloadRoot = await resolveDownloadDir()
+    const destDir = join(downloadRoot, folder)
+    if (!isSafePath(downloadRoot, destDir)) return { success: false, error: 'Access denied' }
     if (!existsSync(destDir)) mkdirSync(destDir, { recursive: true })
     const finalPath = join(destDir, opts.filename)
     const tmpPath = finalPath + '.tmp'
@@ -839,7 +866,7 @@ export function registerIpcHandlers(): void {
     downloadTasks.set(id, task)
     return { success: true }
   })
-  ipcMain.handle('hf-open-models-dir', () => shell.openPath(MODELS_DIR))
+  ipcMain.handle('hf-open-models-dir', async () => shell.openPath(await resolveDownloadDir()))
   ipcMain.handle('onDownloadProgress', () => {})
   ipcMain.handle('removeDownloadListener', () => {})
   ipcMain.handle('get-version', () => app.getVersion())

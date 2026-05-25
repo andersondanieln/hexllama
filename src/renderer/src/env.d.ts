@@ -65,6 +65,8 @@ interface LlamaCppApi {
   listExternalModelFolders: () => Promise<string[]>
   addExternalModelFolder: () => Promise<{ success: boolean; folders?: string[] }>
   removeExternalModelFolder: (folder: string) => Promise<{ success: boolean; folders: string[] }>
+  getDownloadFolder: () => Promise<string>
+  setDownloadFolder: (folder: string) => Promise<{ success: boolean; downloadFolder?: string; error?: string }>
   openExternal: (url: string) => Promise<void>
   openChatWindow: (port: number, name: string) => Promise<void>
   openDetachedChatWindow: (port: number, name: string) => Promise<void>

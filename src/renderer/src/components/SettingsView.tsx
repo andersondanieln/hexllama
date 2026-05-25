@@ -18,6 +18,7 @@ export default function SettingsView() {
   const [expandedEditor, setExpandedEditor] = useState<string | null>(null)
   const [notifPref, setNotifPref] = useState<'banner' | 'manual'>(getNotifPref())
   const [extFolders, setExtFolders] = useState<string[]>([])
+  const [downloadFolder, setDownloadFolder] = useState<string>('')
 
   useEffect(() => {
     if (releaseInfo?.assets.length && !selectedAssetUrl) {
@@ -27,6 +28,7 @@ export default function SettingsView() {
 
   useEffect(() => {
     window.api.listExternalModelFolders().then(setExtFolders)
+    window.api.getDownloadFolder().then(setDownloadFolder)
   }, [])
 
   async function refreshModels() {
@@ -40,7 +42,13 @@ export default function SettingsView() {
   async function handleRemoveExtFolder(folder: string) {
     const res = await window.api.removeExternalModelFolder(folder)
     setExtFolders(res.folders)
+    if (downloadFolder === folder) setDownloadFolder('')
     await refreshModels()
+  }
+  async function handleSetDownloadFolder(folder: string) {
+    const res = await window.api.setDownloadFolder(folder)
+    if (res.success) setDownloadFolder(res.downloadFolder || '')
+    else alert(res.error || 'Failed to update download folder')
   }
 
   function handleNotifPref(pref: 'banner' | 'manual') {
@@ -180,6 +188,28 @@ export default function SettingsView() {
           <button className="btn btn-secondary btn-sm" onClick={handleAddExtFolder}>
             <FolderPlus size={13} /> Add Folder
           </button>
+        </div>
+        <div className="settings-row" style={{ borderBottom: 'none', flexDirection: 'column', alignItems: 'flex-start', gap: 8, paddingTop: 16, marginTop: 12, borderTop: '1px solid var(--border)' }}>
+          <div className="settings-row-label">Download Location</div>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+            Where the Hugging Face tab and URL downloads save files. Defaults to the app's models folder; pick an external folder to keep new downloads alongside your existing library.
+          </p>
+          <select
+            className="cmd-select"
+            value={downloadFolder}
+            onChange={e => handleSetDownloadFolder(e.target.value)}
+            style={{ maxWidth: '100%', width: '100%' }}
+          >
+            <option value="">App default (built-in models folder)</option>
+            {extFolders.map(f => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+          {extFolders.length === 0 && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              Add an external folder above to use it as the download destination.
+            </div>
+          )}
         </div>
       </div>
 
