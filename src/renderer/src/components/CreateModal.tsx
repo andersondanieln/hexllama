@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
-import { useStore } from '../store/useStore'
-import { FolderOpen, ChevronDown, Terminal, Globe, Server } from 'lucide-react'
-import type { Template } from '../../../shared/types'
+import React, { useState, useEffect, useMemo } from 'react'
+import { useStore, type ModelFileInfo } from '../store/useStore'
+import { FolderOpen, ChevronDown, Terminal, Globe, Server, Zap } from 'lucide-react'
+import type { Template, AccelerationConfig } from '../../../shared/types'
 import CmdParamsEditor from './CmdParamsEditor'
 function parseCommand(cmd: string): {
   modelPath: string
@@ -49,6 +49,46 @@ export default function CreateModal() {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [importCmd, setImportCmd] = useState('')
+  const [acceleration, setAcceleration] = useState<AccelerationConfig | undefined>(undefined)
+  const [showAccelTuning, setShowAccelTuning] = useState(false)
+  // The selected model's detected capability — null if no model picked yet or
+  // it doesn't ship MTP heads. Drives whether the Acceleration section appears.
+  const selectedModel = useMemo(() => models.find(m => m.path === modelPath), [models, modelPath])
+  const mtpAvailable = selectedModel?.mtpCapability === 'native'
+  // Draft-model candidates: any GGUF smaller than the main model, not itself.
+  // Architecture-matched pairs are flagged as `recommended` and surface first.
+  // Vocab-mismatched pairs are flagged `compatible: false` and llama-server
+  // will refuse them; we surface this upfront instead of after a 90s load.
+  const draftCandidates = useMemo(() => {
+    if (!selectedModel) return [] as Array<{ model: ModelFileInfo; recommended: boolean; compatible: boolean }>
+    const mainArch = selectedModel.architecture || ''
+    const mainFamily = mainArch.replace(/[0-9].*$/, '')
+    const mainVocab = selectedModel.vocabSize
+    return models
+      .filter(m => m.path !== selectedModel.path)
+      .filter(m => m.name.toLowerCase().endsWith('.gguf'))
+      .filter(m => m.size < selectedModel.size)
+      .map(m => {
+        const family = (m.architecture || '').replace(/[0-9].*$/, '')
+        const recommended = !!mainFamily && family === mainFamily
+        // Compatible if both vocab sizes known and equal, OR if either is
+        // unknown (don't block on missing metadata).
+        const compatible = !mainVocab || !m.vocabSize || mainVocab === m.vocabSize
+        return { model: m, recommended, compatible }
+      })
+      .sort((a, b) => {
+        if (a.compatible !== b.compatible) return a.compatible ? -1 : 1
+        if (a.recommended !== b.recommended) return a.recommended ? -1 : 1
+        return a.model.size - b.model.size
+      })
+  }, [models, selectedModel])
+  const draftAvailable = !mtpAvailable && draftCandidates.length > 0
+  // The currently-picked draft's compatibility, used to gate the save button.
+  const currentDraftIncompatible = useMemo(() => {
+    if (acceleration?.mode !== 'draft' || !acceleration.draftModelPath) return false
+    const c = draftCandidates.find(c => c.model.path === acceleration.draftModelPath)
+    return c ? !c.compatible : false
+  }, [acceleration, draftCandidates])
   useEffect(() => {
     if (editingTemplate) {
       setName(editingTemplate.name)
@@ -59,11 +99,13 @@ export default function CreateModal() {
       setArgs(editingTemplate.args || {})
       setTagsStr(editingTemplate.tags?.join(', ') || '')
       setLaunchMode(editingTemplate.launchMode || 'chat')
+      setAcceleration(editingTemplate.acceleration)
     } else {
       if (activeBackend) setBackendVersion(activeBackend.name)
       setArgs({})
       setTagsStr('')
       setLaunchMode('chat')
+      setAcceleration(undefined)
       if (prefillModelPath) {
         setModelPath(prefillModelPath)
         setPrefillModelPath(null)
@@ -74,6 +116,15 @@ export default function CreateModal() {
       setServerPort(port)
     }
   }, [editingTemplate, activeBackend, prefillModelPath, setPrefillModelPath, cards])
+  // Auto-enable MTP the first time the user picks an MTP-capable model on a
+  // fresh template. Existing templates keep whatever the user explicitly
+  // saved, even if undefined → preserves their intent.
+  useEffect(() => {
+    if (editingTemplate) return
+    if (mtpAvailable && acceleration === undefined) {
+      setAcceleration({ mode: 'native' })
+    }
+  }, [mtpAvailable, editingTemplate, acceleration])
   async function handlePickModel() {
     const file = await window.api.pickModelFile()
     if (file) setModelPath(file.path)
@@ -90,6 +141,9 @@ export default function CreateModal() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return alert('Name is required')
+    if (currentDraftIncompatible) {
+      return alert('The selected draft model has a vocab size that does not match the main model. Pick a same-family draft or disable speculative decoding.')
+    }
     const templateData: Partial<Template> = {
       name,
       description,
@@ -98,7 +152,8 @@ export default function CreateModal() {
       serverPort,
       args,
       tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean),
-      launchMode
+      launchMode,
+      acceleration
     }
     if (editingTemplate) {
       const res = await window.api.saveTemplate({ ...editingTemplate, ...templateData })
@@ -116,6 +171,7 @@ export default function CreateModal() {
         args,
         tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean),
         launchMode,
+        acceleration,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }
@@ -281,6 +337,209 @@ export default function CreateModal() {
               </div>
               <div className="form-hint">Select a file from /models or browse your computer.</div>
             </div>
+            {draftAvailable && (() => {
+              const enabled = acceleration?.mode === 'draft' && !!acceleration?.draftModelPath
+              const currentDraft = acceleration?.draftModelPath
+              const recommended = draftCandidates.filter(c => c.recommended)
+              return (
+                <div
+                  style={{
+                    marginTop: 16,
+                    padding: '12px 14px',
+                    background: enabled ? 'rgba(59,130,246,0.06)' : 'var(--surface)',
+                    border: `1.5px solid ${enabled ? 'rgba(59,130,246,0.45)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-sm)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Zap size={16} style={{ color: enabled ? 'var(--accent)' : 'var(--text-muted)' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                        Speculative decoding
+                        <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>
+                          (optional — pair a small draft model)
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Drafts {acceleration?.draftMax ?? 3} tokens per step with a smaller GGUF.
+                        Typical 1.5–2× speedup on agentic / repetitive workloads.
+                        {recommended.length > 0
+                          ? <> {recommended.length} architecture-matched draft{recommended.length === 1 ? '' : 's'} available.</>
+                          : <> No same-family draft in your library — vocab compatibility is on you.</>}
+                      </div>
+                    </div>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', gap: 6 }}>
+                      <input
+                        type="checkbox"
+                        checked={enabled}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            const auto = recommended[0]?.model.path || draftCandidates[0]?.model.path
+                            setAcceleration({ ...(acceleration || {}), mode: 'draft', draftModelPath: auto })
+                          } else {
+                            setAcceleration({ mode: 'off' })
+                          }
+                        }}
+                      />
+                      <span style={{ fontSize: 12, color: 'var(--text)' }}>{enabled ? 'On' : 'Off'}</span>
+                    </label>
+                  </div>
+                  {enabled && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Draft model</div>
+                      <select
+                        className="form-select mono text-sm"
+                        value={currentDraft || ''}
+                        onChange={e => setAcceleration({ ...(acceleration || { mode: 'draft' }), mode: 'draft', draftModelPath: e.target.value })}
+                        style={{ width: '100%' }}
+                      >
+                        <option value="">-- Select a draft model --</option>
+                        {draftCandidates.map(c => (
+                          <option key={c.model.path} value={c.model.path} disabled={!c.compatible}>
+                            {c.recommended ? '★ ' : ''}{c.model.name} ({(c.model.size / 1e9).toFixed(1)} GB)
+                            {!c.compatible ? ` — incompatible vocab (${c.model.vocabSize ?? '?'} vs ${selectedModel?.vocabSize ?? '?'})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                        ★ = same architecture family as main. Mismatched vocab will cause llama-server to refuse the pair.
+                      </div>
+                      {currentDraftIncompatible && (
+                        <div style={{
+                          marginTop: 8, padding: '6px 10px',
+                          background: 'rgba(220,38,38,0.08)',
+                          border: '1.5px solid rgba(220,38,38,0.35)',
+                          borderRadius: 6, fontSize: 11, color: 'var(--danger)'
+                        }}>
+                          ⚠ Vocab mismatch — this pair will be refused at startup. Pick a same-family draft.
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setShowAccelTuning(!showAccelTuning)}
+                        style={{ padding: '2px 8px', fontSize: 11, marginTop: 8 }}
+                      >
+                        <ChevronDown size={11} style={{ transform: showAccelTuning ? 'rotate(180deg)' : 'none', transition: 'transform 180ms' }} />
+                        {showAccelTuning ? 'Hide' : 'Show'} tuning
+                      </button>
+                      {showAccelTuning && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12, rowGap: 8, marginTop: 8, fontSize: 12, alignItems: 'center' }}>
+                          <label style={{ color: 'var(--text-muted)' }}>Draft max</label>
+                          <input
+                            type="number" min={1} max={16}
+                            className="form-input"
+                            style={{ width: 80, padding: '4px 8px' }}
+                            value={acceleration?.draftMax ?? 3}
+                            onChange={e => setAcceleration({ ...(acceleration || { mode: 'draft' }), draftMax: parseInt(e.target.value, 10) || 3 })}
+                          />
+                          <label style={{ color: 'var(--text-muted)' }}>Draft min</label>
+                          <input
+                            type="number" min={0} max={16}
+                            className="form-input"
+                            style={{ width: 80, padding: '4px 8px' }}
+                            value={acceleration?.draftMin ?? 0}
+                            onChange={e => setAcceleration({ ...(acceleration || { mode: 'draft' }), draftMin: parseInt(e.target.value, 10) || 0 })}
+                          />
+                          <label style={{ color: 'var(--text-muted)' }}>Min p</label>
+                          <input
+                            type="number" min={0} max={1} step={0.05}
+                            className="form-input"
+                            style={{ width: 80, padding: '4px 8px' }}
+                            value={acceleration?.draftPMin ?? 0}
+                            onChange={e => setAcceleration({ ...(acceleration || { mode: 'draft' }), draftPMin: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+            {mtpAvailable && (() => {
+              const enabled = acceleration?.mode === 'native'
+              return (
+                <div
+                  style={{
+                    marginTop: 16,
+                    padding: '12px 14px',
+                    background: enabled ? 'rgba(59,130,246,0.06)' : 'var(--surface)',
+                    border: `1.5px solid ${enabled ? 'rgba(59,130,246,0.45)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-sm)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Zap size={16} style={{ color: enabled ? 'var(--accent)' : 'var(--text-muted)' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                        Multi-token prediction
+                        <span style={{
+                          marginLeft: 8, fontSize: 10, fontWeight: 700, letterSpacing: '0.4px',
+                          padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase',
+                          background: 'rgba(22,163,74,0.15)', color: 'var(--success)',
+                          border: '1px solid rgba(22,163,74,0.35)'
+                        }}>
+                          {selectedModel?.mtpLayers ?? 1} NextN layer{(selectedModel?.mtpLayers ?? 1) === 1 ? '' : 's'} detected
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Drafts {acceleration?.draftMax ?? 3} tokens per step via the model's built-in MTP heads.
+                        Typically 1.5–2.5× faster generation on capable models like Qwen3.6.
+                      </div>
+                    </div>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', gap: 6 }}>
+                      <input
+                        type="checkbox"
+                        checked={enabled}
+                        onChange={e => setAcceleration(e.target.checked ? { ...(acceleration || {}), mode: 'native' } : { mode: 'off' })}
+                      />
+                      <span style={{ fontSize: 12, color: 'var(--text)' }}>{enabled ? 'On' : 'Off'}</span>
+                    </label>
+                  </div>
+                  {enabled && (
+                    <div style={{ marginTop: 10 }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setShowAccelTuning(!showAccelTuning)}
+                        style={{ padding: '2px 8px', fontSize: 11 }}
+                      >
+                        <ChevronDown size={11} style={{ transform: showAccelTuning ? 'rotate(180deg)' : 'none', transition: 'transform 180ms' }} />
+                        {showAccelTuning ? 'Hide' : 'Show'} tuning
+                      </button>
+                      {showAccelTuning && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12, rowGap: 8, marginTop: 8, fontSize: 12, alignItems: 'center' }}>
+                          <label style={{ color: 'var(--text-muted)' }}>Draft max</label>
+                          <input
+                            type="number" min={1} max={16}
+                            className="form-input"
+                            style={{ width: 80, padding: '4px 8px' }}
+                            value={acceleration?.draftMax ?? 3}
+                            onChange={e => setAcceleration({ ...(acceleration || { mode: 'native' }), draftMax: parseInt(e.target.value, 10) || 3 })}
+                          />
+                          <label style={{ color: 'var(--text-muted)' }}>Draft min</label>
+                          <input
+                            type="number" min={0} max={16}
+                            className="form-input"
+                            style={{ width: 80, padding: '4px 8px' }}
+                            value={acceleration?.draftMin ?? 0}
+                            onChange={e => setAcceleration({ ...(acceleration || { mode: 'native' }), draftMin: parseInt(e.target.value, 10) || 0 })}
+                          />
+                          <label style={{ color: 'var(--text-muted)' }}>Min p</label>
+                          <input
+                            type="number" min={0} max={1} step={0.05}
+                            className="form-input"
+                            style={{ width: 80, padding: '4px 8px' }}
+                            value={acceleration?.draftPMin ?? 0}
+                            onChange={e => setAcceleration({ ...(acceleration || { mode: 'native' }), draftPMin: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
             {}
             <div className="collapsible-section" style={{ marginTop: 20 }}>
               <button

@@ -6,9 +6,20 @@ interface CardState {
   pid?: number
   expanded: boolean
   tempPort?: number
+  // Last draft-acceptance reading parsed from llama-server stderr while the
+  // card is running. Cleared when the card stops.
+  acceptance?: { rate: number; accepted: number; generated: number }
 }
 export interface ModelFileInfo {
   name: string; path: string; size: number; folder: string; external?: boolean
+  // Populated at list-models time by gguf.ts in the main process. `native`
+  // means the file ships MTP/NextN heads usable via `--spec-type draft-mtp`.
+  mtpCapability?: 'native' | 'none'
+  mtpLayers?: number
+  architecture?: string
+  contextLength?: number
+  // Tokenizer vocab size. Used to pre-screen spec-decode draft pairs.
+  vocabSize?: number
 }
 export interface ModelDownloadInfo {
   id: string; url: string; filename: string; destPath: string
@@ -68,6 +79,7 @@ interface AppStore {
   updateCard: (id: string, template: Partial<Template>) => void
   removeCard: (id: string) => void
   setCardStatus: (id: string, status: RunningStatus, pid?: number, tempPort?: number) => void
+  setCardAcceptance: (id: string, accept: { rate: number; accepted: number; generated: number }) => void
   toggleCardExpanded: (id: string) => void
   collapseAllCards: () => void
 }
@@ -121,8 +133,13 @@ export const useStore = create<AppStore>((set) => ({
       ...c,
       status,
       pid: status === 'idle' || status === 'error' ? undefined : (pid ?? c.pid),
-      tempPort: status === 'idle' || status === 'error' ? undefined : (tempPort ?? c.tempPort)
+      tempPort: status === 'idle' || status === 'error' ? undefined : (tempPort ?? c.tempPort),
+      // Drop any stale acceptance number once we're no longer running.
+      acceptance: status === 'idle' || status === 'error' ? undefined : c.acceptance
     } : c)
+  })),
+  setCardAcceptance: (id, accept) => set((s) => ({
+    cards: s.cards.map(c => c.template.id === id ? { ...c, acceptance: accept } : c)
   })),
   toggleCardExpanded: (id) => set((s) => ({
     cards: s.cards.map(c => c.template.id === id ? { ...c, expanded: !c.expanded } : c)

@@ -35,6 +35,10 @@ const api = {
     ipcRenderer.removeAllListeners('model-exited')
     ipcRenderer.on('model-exited', (_e, data) => cb(data))
   },
+  onModelAccept: (cb: (data: { id: string; rate: number; accepted: number; generated: number }) => void) => {
+    ipcRenderer.removeAllListeners('model-accept')
+    ipcRenderer.on('model-accept', (_e, data) => cb(data))
+  },
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
   downloadRelease: (opts: object) => ipcRenderer.invoke('download-release', opts),
   cancelBackendDownload: () => ipcRenderer.invoke('cancel-backend-download'),

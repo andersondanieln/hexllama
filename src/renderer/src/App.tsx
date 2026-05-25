@@ -90,6 +90,9 @@ export default function App() {
       const card = s.cards.find(c => c.template.id === data.id)
       if (card && card.status === 'running') s.setCardStatus(data.id, 'idle')
     })
+    window.api.onModelAccept((data) => {
+      useStore.getState().setCardAcceptance(data.id, { rate: data.rate, accepted: data.accepted, generated: data.generated })
+    })
   }, [])
 
   useEffect(() => {

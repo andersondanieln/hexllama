@@ -10,6 +10,7 @@ import http from 'http'
 import { app } from 'electron'
 import extract from 'extract-zip'
 import net from 'net'
+import { readGgufInfo } from './gguf'
 const APP_ROOT = app.isPackaged ? join(app.getPath('userData')) : join(process.cwd())
 const MODELS_DIR    = join(APP_ROOT, 'models')
 const TEMPLATES_DIR = join(APP_ROOT, 'templates')
@@ -164,7 +165,12 @@ function startDownload(
 export function registerIpcHandlers(): void {
   ipcMain.handle('list-models', async () => {
     const exts = ['.gguf', '.bin', '.ggml']
-    const results: { name: string; path: string; size: number; folder: string; external: boolean }[] = []
+    interface ListedModel {
+      name: string; path: string; size: number; folder: string; external: boolean
+      mtpCapability?: 'native' | 'none'; mtpLayers?: number
+      architecture?: string; contextLength?: number; vocabSize?: number
+    }
+    const results: ListedModel[] = []
     const seen = new Set<string>()
     const scan = async (dir: string, external: boolean) => {
       try {
@@ -187,6 +193,22 @@ export function registerIpcHandlers(): void {
     for (const folder of settings.externalModelFolders) {
       if (existsSync(folder)) await scan(folder, true)
     }
+    // Read GGUF metadata in parallel (cached by mtime, so repeated scans are
+    // free). We only do this for .gguf files since the parser doesn't apply
+    // to the other extensions.
+    await Promise.all(results.map(async m => {
+      if (!m.path.toLowerCase().endsWith('.gguf')) return
+      try {
+        const info = await readGgufInfo(m.path)
+        if (info.architecture) m.architecture = info.architecture
+        if (info.contextLength) m.contextLength = info.contextLength
+        if (info.vocabSize) m.vocabSize = info.vocabSize
+        m.mtpLayers = info.mtpLayers
+        m.mtpCapability = info.mtpLayers > 0 ? 'native' : 'none'
+      } catch {
+        m.mtpCapability = 'none'
+      }
+    }))
     return results
   })
   ipcMain.handle('list-external-model-folders', async () => (await loadSettings()).externalModelFolders)
@@ -529,7 +551,26 @@ export function registerIpcHandlers(): void {
     if (!existsSync(exePath)) return { success: false, error: `Executable not found: ${exePath}` }
     try {
       const proc = spawn(exePath, finalArgs, { detached: false, stdio: 'pipe', cwd: dirname(exePath), windowsHide: false })
-      proc.stderr?.on('data', (d) => console.error('[llama-server]', d.toString()))
+      // llama-server prints lines like:
+      //   slot print_timing: id 3 | task 0 | draft acceptance = 0.55556 (775 accepted / 1395 generated)
+      // when spec-decode is active. Surface the latest rate to the renderer so
+      // the card can show a live "55% accept" indicator.
+      const acceptRegex = /draft acceptance\s*=\s*([0-9.]+)\s*\(\s*(\d+)\s*accepted\s*\/\s*(\d+)\s*generated\s*\)/i
+      proc.stderr?.on('data', (d) => {
+        const s = d.toString()
+        console.error('[llama-server]', s)
+        const m = s.match(acceptRegex)
+        if (m) {
+          const rate = parseFloat(m[1])
+          const accepted = parseInt(m[2], 10)
+          const generated = parseInt(m[3], 10)
+          if (Number.isFinite(rate)) {
+            BrowserWindow.getAllWindows().forEach(win => {
+              win.webContents.send('model-accept', { id: opts.id, rate, accepted, generated })
+            })
+          }
+        }
+      })
       proc.stdout?.on('data', (d) => console.log('[llama-server]', d.toString()))
       proc.on('error', (err: any) => {
         let msg = String(err)

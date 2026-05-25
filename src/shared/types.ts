@@ -31,6 +31,22 @@ export interface CommandsSchema {
   version: string
   categories: CommandCategory[]
 }
+// Speculative-decoding settings. Three modes:
+//  - 'native': model has built-in MTP/NextN heads (Qwen3.6, DeepSeek-V3 etc.)
+//  - 'draft':  pair with a smaller draft GGUF (llama-server --spec-type draft-simple)
+//  - 'off':    no acceleration flags appended at spawn
+export interface AccelerationConfig {
+  mode: 'native' | 'draft' | 'off'
+  // Path to the draft GGUF when mode === 'draft'. Ignored otherwise.
+  draftModelPath?: string
+  // Tokens drafted per step (llama-server default: 3). Higher = bigger
+  // potential gain on predictable text, more wasted compute on misses.
+  draftMax?: number
+  // Minimum draft tokens before falling back to normal decoding.
+  draftMin?: number
+  // Minimum acceptance probability for greedy decoding (default 0.0).
+  draftPMin?: number
+}
 export interface Template {
   id: string
   name: string
@@ -41,6 +57,7 @@ export interface Template {
   args: Record<string, string | number | boolean | null>
   tags?: string[]
   launchMode?: 'chat' | 'api'
+  acceleration?: AccelerationConfig
   createdAt: string
   updatedAt: string
   _file?: string
@@ -60,4 +77,7 @@ export interface CardState {
   status: RunningStatus
   pid?: number
   expanded: boolean
+  // Last draft-acceptance reading parsed from llama-server stderr while the
+  // card is running. Cleared when the card stops.
+  acceptance?: { rate: number; accepted: number; generated: number }
 }

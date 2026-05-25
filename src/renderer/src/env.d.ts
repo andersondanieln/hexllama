@@ -5,6 +5,14 @@ interface ModelFileInfo {
   size: number
   folder: string
   external?: boolean
+  // Populated by the main process at list-models time via gguf.ts. `native`
+  // means the GGUF carries MTP/NextN heads and llama-server can use them.
+  mtpCapability?: 'native' | 'none'
+  mtpLayers?: number
+  architecture?: string
+  contextLength?: number
+  // Tokenizer vocab size. Used to pre-screen spec-decode draft pairs.
+  vocabSize?: number
 }
 interface ModelDownloadInfo {
   id: string
@@ -49,6 +57,7 @@ interface LlamaCppApi {
   stopModel: (id: string) => Promise<{ success: boolean; error?: string; alreadyStopped?: boolean }>
   onModelError: (cb: (data: { id: string; error: string }) => void) => void
   onModelExited: (cb: (data: { id: string }) => void) => void
+  onModelAccept: (cb: (data: { id: string; rate: number; accepted: number; generated: number }) => void) => void
   checkUpdates: () => Promise<ReleaseInfo>
   downloadRelease: (opts: { url: string; version: string; assetName: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   cancelBackendDownload: () => Promise<{ success: boolean }>

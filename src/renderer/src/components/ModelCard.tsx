@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useStore } from '../store/useStore'
-import { Play, Square, Settings, ChevronDown, MoreVertical, Copy, Trash, Download, Globe, Server, AlertCircle } from 'lucide-react'
+import { Play, Square, Settings, ChevronDown, MoreVertical, Copy, Trash, Download, Globe, Server, AlertCircle, Zap } from 'lucide-react'
 import type { CardState, CommandParam } from '../../../shared/types'
 import CmdParamsEditor from './CmdParamsEditor'
 interface Props { card: CardState }
@@ -57,6 +57,21 @@ export default function ModelCard({ card }: Props) {
     if (launchMode === 'api' && !args.includes('--no-webui')) {
       args.push('--no-webui')
     }
+    // Speculative decoding. The Acceleration UI in CreateModal gates which
+    // mode is appropriate; we just translate to llama-server flags here.
+    const accel = card.template.acceleration
+    if (accel?.mode === 'native' && !args.includes('--spec-type')) {
+      args.push('--spec-type', 'draft-mtp')
+      if (typeof accel.draftMax === 'number') args.push('--spec-draft-n-max', String(accel.draftMax))
+      if (typeof accel.draftMin === 'number') args.push('--spec-draft-n-min', String(accel.draftMin))
+      if (typeof accel.draftPMin === 'number') args.push('--spec-draft-p-min', String(accel.draftPMin))
+    } else if (accel?.mode === 'draft' && accel.draftModelPath && !args.includes('--spec-type')) {
+      args.push('--spec-type', 'draft-simple')
+      args.push('--spec-draft-model', accel.draftModelPath)
+      if (typeof accel.draftMax === 'number') args.push('--spec-draft-n-max', String(accel.draftMax))
+      if (typeof accel.draftMin === 'number') args.push('--spec-draft-n-min', String(accel.draftMin))
+      if (typeof accel.draftPMin === 'number') args.push('--spec-draft-p-min', String(accel.draftPMin))
+    }
     const openBrowser = launchMode === 'chat'
     const res = await window.api.runModel({
       id: card.template.id,
@@ -103,7 +118,51 @@ export default function ModelCard({ card }: Props) {
           )}
         </div>
         <div className="card-info">
-          <h3 className="card-name" title={card.template.name}>{card.template.name}</h3>
+          <h3 className="card-name" title={card.template.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.template.name}</span>
+            {card.template.acceleration?.mode === 'native' && (
+              <span
+                title={card.acceptance
+                  ? `Native MTP active — last accept rate ${(card.acceptance.rate * 100).toFixed(0)}% (${card.acceptance.accepted}/${card.acceptance.generated})`
+                  : (isRunning
+                      ? 'Native multi-token prediction (MTP/NextN) is active — drafts multiple tokens per step'
+                      : 'Native MTP enabled — will activate when the card starts')}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 3,
+                  fontSize: 9, fontWeight: 700, letterSpacing: '0.4px',
+                  padding: '2px 6px', borderRadius: 4,
+                  background: 'rgba(59,130,246,0.15)', color: 'var(--accent)',
+                  border: '1px solid rgba(59,130,246,0.35)',
+                  textTransform: 'uppercase', flexShrink: 0,
+                  opacity: isRunning ? 1 : 0.6
+                }}
+              >
+                <Zap size={10} /> MTP
+                {card.acceptance && <span style={{ marginLeft: 4, opacity: 0.85 }}>{Math.round(card.acceptance.rate * 100)}%</span>}
+              </span>
+            )}
+            {card.template.acceleration?.mode === 'draft' && card.template.acceleration.draftModelPath && (
+              <span
+                title={card.acceptance
+                  ? `Spec-decode via ${card.template.acceleration.draftModelPath.split(/[/\\]/).pop()} — last accept rate ${(card.acceptance.rate * 100).toFixed(0)}%`
+                  : (isRunning
+                      ? `Speculative decoding via draft model: ${card.template.acceleration.draftModelPath.split(/[/\\]/).pop()}`
+                      : `Spec-decode configured (${card.template.acceleration.draftModelPath.split(/[/\\]/).pop()}) — will activate when the card starts`)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 3,
+                  fontSize: 9, fontWeight: 700, letterSpacing: '0.4px',
+                  padding: '2px 6px', borderRadius: 4,
+                  background: 'rgba(168,85,247,0.15)', color: '#a855f7',
+                  border: '1px solid rgba(168,85,247,0.35)',
+                  textTransform: 'uppercase', flexShrink: 0,
+                  opacity: isRunning ? 1 : 0.6
+                }}
+              >
+                <Zap size={10} /> DRAFT
+                {card.acceptance && <span style={{ marginLeft: 4, opacity: 0.85 }}>{Math.round(card.acceptance.rate * 100)}%</span>}
+              </span>
+            )}
+          </h3>
           <p className="card-desc" title={card.template.description}>{card.template.description || 'No description'}</p>
         </div>
         <div className="card-menu-btn" ref={menuRef} style={{ position: 'relative', zIndex: 10 }}>
@@ -137,9 +196,12 @@ export default function ModelCard({ card }: Props) {
         ))}
       </div>
       {!modelExists && card.template.modelPath && (
-        <div className="hub-error" style={{ margin: '0 18px 12px', fontSize: 12 }}>
+        <div
+          className="hub-error"
+          style={{ margin: '0 18px 12px', fontSize: 12, userSelect: 'text', WebkitUserSelect: 'text', cursor: 'text' } as React.CSSProperties}
+        >
           <AlertCircle size={14} />
-          <span>Model file not found at <code style={{ background: 'transparent', wordBreak: 'break-all' }}>{card.template.modelPath}</code>. Move the file back, re-download it, or edit the template.</span>
+          <span>Model file not found at <code style={{ background: 'transparent', wordBreak: 'break-all', userSelect: 'text', WebkitUserSelect: 'text' } as React.CSSProperties}>{card.template.modelPath}</code>. Move the file back, re-download it, or edit the template.</span>
         </div>
       )}
       {}
