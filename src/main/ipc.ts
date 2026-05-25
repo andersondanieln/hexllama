@@ -189,6 +189,15 @@ export function registerIpcHandlers(): void {
     }
     return results
   })
+  // Existence check against the real filesystem, not the cached list-models
+  // scan. The scan only covers MODELS_DIR + externalModelFolders, so a template
+  // whose modelPath was set via the Browse picker (arbitrary directory) was
+  // reported as "Missing File" even when present on disk. This handler is the
+  // truth source consumed by ModelCard's modelExists check.
+  ipcMain.handle('file-exists', async (_e, p: string) => {
+    if (typeof p !== 'string' || !p) return false
+    try { return existsSync(p) } catch { return false }
+  })
   ipcMain.handle('list-external-model-folders', async () => (await loadSettings()).externalModelFolders)
   ipcMain.handle('add-external-model-folder', async () => {
     const r = await dialog.showOpenDialog({ title: 'Add External Model Folder', properties: ['openDirectory'] })

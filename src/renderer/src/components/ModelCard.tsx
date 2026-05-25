@@ -11,7 +11,23 @@ export default function ModelCard({ card }: Props) {
   const isRunning = card.status === 'running'
   const isExpanded = card.expanded
   const launchMode = card.template.launchMode || 'chat'
-  const modelExists = !card.template.modelPath || models.some(m => m.path === card.template.modelPath)
+  // Optimistic check first — if the path is in the scanned models list we can
+  // skip the IPC round-trip. For arbitrary paths (Browse picker, sibling dirs)
+  // we fall back to a real fs.existsSync via the file-exists IPC. Re-runs
+  // whenever the modelPath or the cached models list changes.
+  const inScannedModels = !card.template.modelPath || models.some(m => m.path === card.template.modelPath)
+  const [diskExists, setDiskExists] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!card.template.modelPath || inScannedModels) { setDiskExists(null); return }
+    let cancelled = false
+    window.api.fileExists(card.template.modelPath).then(ok => {
+      if (!cancelled) setDiskExists(ok)
+    })
+    return () => { cancelled = true }
+  }, [card.template.modelPath, inScannedModels])
+  // `null` while the IPC is in flight — assume the file is there so the card
+  // doesn't flicker into "Missing File" for a frame on every render.
+  const modelExists = inScannedModels || diskExists !== false
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowMenu(false)
