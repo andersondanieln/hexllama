@@ -265,6 +265,15 @@ export default function ModelsView() {
       list.forEach(dl => upsertModelDownload(dl))
     })
   }, [])
+
+  // Re-scan whenever the window regains focus so GGUFs dropped into a
+  // watched folder externally (Finder, `wget`, NAS sync) show up without
+  // the user having to click the manual 🔄 button.
+  useEffect(() => {
+    const onFocus = () => { refresh() }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [refresh])
   const downloads = Object.values(modelDownloads)
   const activeDownloads = downloads.filter(d => d.phase !== 'cancelled')
   return (
