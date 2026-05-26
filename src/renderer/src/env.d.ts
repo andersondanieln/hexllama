@@ -74,6 +74,14 @@ interface LlamaCppApi {
   notifyTabMoved: (url: string) => Promise<void>
   onTabMovedElsewhere: (cb: (data: { url: string }) => void) => void
   getVersion: () => Promise<string>
+  benchRun: (opts: { backendPath: string; backendExe?: string; modelPath: string; reps?: number; params: Record<string, string> }) =>
+    Promise<{ success: boolean; rows?: Record<string, unknown>[]; error?: string }>
+  onBenchProgress: (cb: (data: { line: string }) => void) => void
+  removeBenchProgressListener: () => void
+  benchShowResults: (rows: unknown[], context?: { backendPath: string; backendExe?: string; modelPath: string }) => Promise<{ success: boolean }>
+  getLatestBenchResults: () => Promise<{ rows: Record<string, unknown>[]; context: { backendPath: string; backendExe?: string; modelPath: string } | null }>
+  benchExportMarkdown: (content: string) => Promise<{ success: boolean; path?: string; error?: string; canceled?: boolean }>
+  benchExportPdf: () => Promise<{ success: boolean; path?: string; error?: string; canceled?: boolean }>
 }
 declare global {
   interface Window { api: LlamaCppApi }

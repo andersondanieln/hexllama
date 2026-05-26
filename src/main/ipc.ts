@@ -588,6 +588,79 @@ export function registerIpcHandlers(): void {
     }
   })
   
+  // Shared in-memory store; the popup results window pulls from it on load.
+  let latestBenchResults: unknown[] = []
+  let latestBenchContext: { backendPath: string; backendExe?: string; modelPath: string } | null = null
+  function openBenchResultsWindow() {
+    const candidates = [
+      join(process.cwd(), 'assets', 'icon.png'),
+      join(__dirname, '../../assets/icon.png'),
+      join(app.getAppPath(), 'assets', 'icon.png')
+    ]
+    const icon = candidates.find(existsSync)
+    const win = new BrowserWindow({
+      width: 1100, height: 700, show: true, autoHideMenuBar: true,
+      title: 'Hexllama — Benchmark Results',
+      titleBarStyle: 'hiddenInset',
+      backgroundColor: '#f5f5f5',
+      ...(icon ? { icon } : {}),
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    })
+    const rendererUrl = process.env['ELECTRON_RENDERER_URL']
+    if (rendererUrl) {
+      win.loadURL(`${rendererUrl}?bench_results=1`)
+    } else {
+      win.loadFile(join(__dirname, '../renderer/index.html'), { query: { bench_results: '1' } })
+    }
+  }
+  ipcMain.handle('bench-show-results', (_e, rows: unknown[], context?: { backendPath: string; backendExe?: string; modelPath: string }) => {
+    latestBenchResults = Array.isArray(rows) ? rows : []
+    latestBenchContext = context && context.backendPath && context.modelPath ? context : null
+    openBenchResultsWindow()
+    return { success: true }
+  })
+  ipcMain.handle('get-latest-bench-results', () => ({ rows: latestBenchResults, context: latestBenchContext }))
+  ipcMain.handle('bench-export-markdown', async (event, content: string) => {
+    const win = BrowserWindow.fromWebContents(event.sender) || undefined
+    const r = await dialog.showSaveDialog(win as BrowserWindow, {
+      title: 'Export Results to Markdown',
+      defaultPath: `benchmark-${Date.now()}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    })
+    if (r.canceled || !r.filePath) return { success: false, canceled: true }
+    try {
+      await fsPromises.writeFile(r.filePath, content, 'utf-8')
+      return { success: true, path: r.filePath }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  })
+  ipcMain.handle('bench-export-pdf', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return { success: false, error: 'Window not found' }
+    const r = await dialog.showSaveDialog(win, {
+      title: 'Export Results to PDF',
+      defaultPath: `benchmark-${Date.now()}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    })
+    if (r.canceled || !r.filePath) return { success: false, canceled: true }
+    try {
+      const buf = await event.sender.printToPDF({
+        printBackground: true,
+        pageSize: 'Letter',
+        landscape: true
+      })
+      await fsPromises.writeFile(r.filePath, buf)
+      return { success: true, path: r.filePath }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  })
   function openChatWindow(port: number, name?: string) {
     const chatUrl = `http://127.0.0.1:${port}`
     const templateName = name || `Port ${port}`
@@ -709,6 +782,67 @@ export function registerIpcHandlers(): void {
       if (!win.isDestroyed()) {
         win.webContents.send('tab-moved-elsewhere', { url })
       }
+    })
+  })
+  ipcMain.handle('bench-run', async (_e, opts: { backendPath: string; backendExe?: string; modelPath: string; reps?: number; params: Record<string, string> }) => {
+    const binName = process.platform === 'win32' ? 'llama-bench.exe' : 'llama-bench'
+    // Backend binaries can live nested (e.g. <backendPath>/llama-bXXXX/llama-server).
+    // Derive llama-bench's location from the same subdir as the known exe.
+    const exeSubdir = opts.backendExe ? dirname(opts.backendExe) : ''
+    const binPath = join(opts.backendPath, exeSubdir, binName)
+    if (!isSafePath(BACKEND_DIR, binPath)) return { success: false, error: 'Access denied' }
+    if (!existsSync(binPath)) return { success: false, error: `llama-bench not found at ${binPath}` }
+    if (!opts.modelPath || !existsSync(opts.modelPath)) return { success: false, error: 'Model file not found' }
+    const args = ['-m', opts.modelPath, '-o', 'json', '--progress']
+    if (opts.reps && opts.reps > 0) args.push('-r', String(opts.reps))
+    for (const [k, v] of Object.entries(opts.params || {})) {
+      // Collapse whitespace around commas so "f16, q8_0" / "4 , 6 , 8" both
+      // pass through cleanly; drop empty fragments from trailing commas.
+      const cleaned = (v || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0)
+        .join(',')
+      if (cleaned) args.push(k, cleaned)
+    }
+    return new Promise<{ success: boolean; rows?: unknown[]; error?: string }>((resolve) => {
+      let stdout = ''
+      let stderr = ''
+      let stderrCarry = ''  // partial line accumulator across chunk boundaries
+      const proc = spawn(binPath, args, { stdio: 'pipe', cwd: dirname(binPath) })
+      proc.stdout?.on('data', d => { stdout += d.toString() })
+      proc.stderr?.on('data', d => {
+        const text = d.toString()
+        stderr += text
+        stderrCarry += text
+        const lines = stderrCarry.split('\n')
+        // keep the last (possibly incomplete) fragment for the next chunk
+        stderrCarry = lines.pop() || ''
+        for (const raw of lines) {
+          const line = raw.trim()
+          if (!line) continue
+          try { _e.sender.send('bench-progress', { line }) } catch {}
+        }
+      })
+      proc.on('error', err => resolve({ success: false, error: String(err) }))
+      proc.on('exit', code => {
+        if (code !== 0) {
+          // Capture a long tail so messages like "failed to create context with model"
+          // and their surrounding diagnostic lines all survive into the UI.
+          const tail = stderr.trim().split('\n').slice(-40).join('\n')
+          resolve({ success: false, error: tail || `llama-bench exited with code ${code}` })
+          return
+        }
+        try {
+          const trimmed = stdout.trim()
+          const start = trimmed.indexOf('[')
+          const json = start >= 0 ? trimmed.slice(start) : trimmed
+          const parsed = JSON.parse(json)
+          resolve({ success: true, rows: Array.isArray(parsed) ? parsed : [parsed] })
+        } catch (e) {
+          resolve({ success: false, error: 'Failed to parse llama-bench JSON output. Stdout head: ' + stdout.slice(0, 400) })
+        }
+      })
     })
   })
   ipcMain.handle('stop-model', (_e, id: string) => {

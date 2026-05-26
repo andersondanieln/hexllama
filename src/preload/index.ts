@@ -72,6 +72,18 @@ const api = {
     ipcRenderer.on('tab-moved-elsewhere', (_e, data) => cb(data))
   },
   getVersion: () => ipcRenderer.invoke('get-version'),
+  benchRun: (opts: { backendPath: string; backendExe?: string; modelPath: string; reps?: number; params: Record<string, string> }) =>
+    ipcRenderer.invoke('bench-run', opts),
+  onBenchProgress: (cb: (data: { line: string }) => void) => {
+    ipcRenderer.removeAllListeners('bench-progress')
+    ipcRenderer.on('bench-progress', (_e, data) => cb(data))
+  },
+  removeBenchProgressListener: () => ipcRenderer.removeAllListeners('bench-progress'),
+  benchShowResults: (rows: unknown[], context?: { backendPath: string; backendExe?: string; modelPath: string }) =>
+    ipcRenderer.invoke('bench-show-results', rows, context),
+  getLatestBenchResults: () => ipcRenderer.invoke('get-latest-bench-results'),
+  benchExportMarkdown: (content: string) => ipcRenderer.invoke('bench-export-markdown', content),
+  benchExportPdf: () => ipcRenderer.invoke('bench-export-pdf'),
 }
 if (process.contextIsolated) {
   try {
